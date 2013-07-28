@@ -1,4 +1,4 @@
-// A simple AGI exaple in go
+// A simple AGI example in go
 // Copyright (C) 2013, Lefteris Zafiris <zaf.000@gmail.com>
 
 package main
