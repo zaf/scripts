@@ -11,9 +11,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
-	"bufio"
 	"strings"
 )
 
@@ -26,7 +26,7 @@ func main() {
 
 	agi_init(agi_data)
 	if agi_data["arg_1"] == "" {
-		fmt.Fprintln(os.Stderr,"No arguments passed, exiting")
+		fmt.Fprintln(os.Stderr, "No arguments passed, exiting")
 		os.Exit(1)
 	}
 	my_file := agi_data["arg_1"]
@@ -39,12 +39,12 @@ func main() {
 		fmt.Fprintln(os.Stdout, "ANSWER")
 		res = agi_response()
 		if res[1] == "-1" {
-			fmt.Fprintln(os.Stderr,"Failed to answer channel")
+			fmt.Fprintln(os.Stderr, "Failed to answer channel")
 			os.Exit(1)
 		}
 	}
 	//Display on the console the file we are about to playback
-	fmt.Fprintln(os.Stdout, "VERBOSE \"Playingback file:",  my_file, "\" 1")
+	fmt.Fprintln(os.Stdout, "VERBOSE \"Playingback file:", my_file, "\" 1")
 	//os.Stdout.Sync()
 	res = agi_response()
 	//Playback file
@@ -70,28 +70,28 @@ func agi_init(agi_arg map[string]string) {
 	if debug {
 		fmt.Fprintln(os.Stderr, "Finished reading AGI vars:")
 		for key, value := range agi_arg {
-			fmt.Fprintln(os.Stderr, key + "\t\t" + value)
+			fmt.Fprintln(os.Stderr, key+"\t\t"+value)
 		}
 	}
 }
 
-func agi_response() ([]string) {
+func agi_response() []string {
 	// Read back AGI repsonse
 	line, _ := agi_reader.ReadString('\n')
 	res := strings.Replace(line, "\n", "", -1)
-	reply := strings.Fields(res)
+	reply := strings.SplitN(res, " ", 3)
 
 	if len(reply) < 2 {
-		fmt.Fprintln(os.Stderr,"AGI unexpected error!")
+		fmt.Fprintln(os.Stderr, "AGI unexpected error!")
 		return []string{"-1", "-1", "-1"}
 	}
 	if reply[0] != "200" {
-		fmt.Fprintln(os.Stderr,"AGI command failed:", reply[1])
+		fmt.Fprintln(os.Stderr, "AGI command failed:", reply[1])
 	} else {
 		reply[1] = strings.Replace(reply[1], "result=", "", 1)
 	}
 	if debug {
-		fmt.Fprintln(os.Stderr,"AGI command returned:", reply)
+		fmt.Fprintln(os.Stderr, "AGI command returned:", reply)
 	}
 	return reply
 }
