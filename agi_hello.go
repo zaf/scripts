@@ -6,10 +6,12 @@
 
 package main
 
-import "fmt"
-import "os"
-import "bufio"
-import "strings"
+import (
+	"fmt"
+	"os"
+	"bufio"
+	"strings"
+)
 
 var debug = true
 var agi_reader = bufio.NewReaderSize(os.Stdin, 0)
@@ -57,15 +59,15 @@ func main() {
 func agi_init(agi_in map[string]string) {
 	//Read and store AGI input
 	for {
-        line, err := agi_reader.ReadString('\n')
-        if err != nil || line == "\n" {
+		line, err := agi_reader.ReadString('\n')
+		if err != nil || line == "\n" {
             break
         }
 		input_str := strings.SplitN(line, ": ", 2)
 		if len(input_str) == 2 {
 			agi_in[input_str[0]] = strings.Replace(input_str[1], "\n", "", -1)
 		}
-    }
+	}
 
 	if debug {
 		fmt.Fprintln(os.Stderr, "Finished reading AGI vars:")
