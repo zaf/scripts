@@ -1,8 +1,12 @@
-// A simple AGI example in go
-// We read and store AGI vars, run some simple AGI commands and parse the output
-//
-// Copyright (C) 2013, Lefteris Zafiris <zaf.000@gmail.com>
-//
+/*	A simple AGI example in go
+	We read and store AGI input, run some simple AGI commands and parse the output
+
+	Copyright (C) 2013, Lefteris Zafiris <zaf.000@gmail.com>
+
+	This program is free software, distributed under the terms of
+	the GNU General Public License Version 2. See the LICENSE file
+	at the top of the source tree.
+*/
 
 package main
 
@@ -21,11 +25,11 @@ func main() {
 	agi_data := make(map[string]string)
 
 	agi_init(agi_data)
-	if agi_data["agi_arg_1"] == "" {
+	if agi_data["arg_1"] == "" {
 		fmt.Fprintln(os.Stderr,"No arguments passed, exiting")
 		os.Exit(1)
 	}
-	my_file := agi_data["agi_arg_1"]
+	my_file := agi_data["arg_1"]
 
 	//Check channel status
 	fmt.Fprintln(os.Stdout, "CHANNEL STATUS")
@@ -40,23 +44,17 @@ func main() {
 		}
 	}
 	//Display on the console the file we are about to playback
-	fmt.Fprintln(os.Stdout, "VERBOSE \"Playingback file: " + my_file + "\" 1")
+	fmt.Fprintln(os.Stdout, "VERBOSE \"Playingback file:",  my_file, "\" 1")
 	//os.Stdout.Sync()
 	res = agi_response()
-	if debug {
-		fmt.Fprintln(os.Stderr, res)
-	}
 	//Playback file
 	fmt.Fprintln(os.Stdout, "STREAM FILE", my_file, "\"\"")
 	//os.Stdout.Sync()
 	res = agi_response()
-	if debug {
-		fmt.Fprintln(os.Stderr, res)
-	}
 	os.Exit(0)
 }
 
-func agi_init(agi_in map[string]string) {
+func agi_init(agi_arg map[string]string) {
 	//Read and store AGI input
 	for {
 		line, err := agi_reader.ReadString('\n')
@@ -65,14 +63,14 @@ func agi_init(agi_in map[string]string) {
 		}
 		input_str := strings.SplitN(line, ": ", 2)
 		if len(input_str) == 2 {
-			agi_in[input_str[0]] = strings.Replace(input_str[1], "\n", "", -1)
+			agi_arg[strings.Replace(input_str[0], "agi_", "", 1)] = strings.Replace(input_str[1], "\n", "", -1)
 		}
 	}
 
 	if debug {
 		fmt.Fprintln(os.Stderr, "Finished reading AGI vars:")
-		for key, value := range agi_in {
-			fmt.Fprintln(os.Stderr, "Key:", key, "Value:", value)
+		for key, value := range agi_arg {
+			fmt.Fprintln(os.Stderr, key + "\t\t" + value)
 		}
 	}
 }
@@ -90,7 +88,10 @@ func agi_response() ([]string) {
 	if reply[0] != "200" {
 		fmt.Fprintln(os.Stderr,"AGI command failed:", reply[1])
 	} else {
-		reply[1] = strings.Replace(reply[1], "result=", "", -1)
+		reply[1] = strings.Replace(reply[1], "result=", "", 1)
+	}
+	if debug {
+		fmt.Fprintln(os.Stderr,"AGI command returned:", reply)
 	}
 	return reply
 }
