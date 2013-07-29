@@ -61,8 +61,8 @@ func agi_init(agi_in map[string]string) {
 	for {
 		line, err := agi_reader.ReadString('\n')
 		if err != nil || line == "\n" {
-            break
-        }
+			break
+		}
 		input_str := strings.SplitN(line, ": ", 2)
 		if len(input_str) == 2 {
 			agi_in[input_str[0]] = strings.Replace(input_str[1], "\n", "", -1)
