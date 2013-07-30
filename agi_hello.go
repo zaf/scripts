@@ -80,8 +80,8 @@ func agi_init(agi_arg map[string]string) {
 func agi_response() []string {
 	// Read back AGI repsonse
 	line, _ := agi_reader.ReadString('\n')
-	res := strings.Replace(line, "\n", "", -1)
-	reply := strings.SplitN(res, " ", 3)
+	line = strings.TrimRight(line, "\n")
+	reply := strings.SplitN(line, " ", 3)
 
 	if len(reply) < 2 {
 		fmt.Fprintln(os.Stderr, "AGI unexpected error!")
