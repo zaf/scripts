@@ -63,7 +63,9 @@ func agi_init(agi_arg map[string]string) {
 		}
 		input_str := strings.SplitN(line, ": ", 2)
 		if len(input_str) == 2 {
-			agi_arg[strings.Replace(input_str[0], "agi_", "", 1)] = strings.Replace(input_str[1], "\n", "", -1)
+			input_str[0] = strings.TrimPrefix(input_str[0], "agi_")
+			input_str[1] = strings.TrimRight(input_str[1], "\n")
+			agi_arg[input_str[0]] = input_str[1]
 		}
 	}
 
@@ -86,9 +88,9 @@ func agi_response() []string {
 		return []string{"-1", "-1", "-1"}
 	}
 	if reply[0] != "200" {
-		fmt.Fprintln(os.Stderr, "AGI command failed:", reply[1])
+		fmt.Fprintln(os.Stderr, "AGI command failed:", reply)
 	} else {
-		reply[1] = strings.Replace(reply[1], "result=", "", 1)
+		reply[1] = strings.TrimPrefix(reply[1], "result=")
 	}
 	if debug {
 		fmt.Fprintln(os.Stderr, "AGI command returned:", reply)
