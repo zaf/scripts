@@ -44,13 +44,17 @@ func main() {
 		}
 	}
 	//Display on the console the file we are about to playback
-	fmt.Fprintln(os.Stdout, "VERBOSE \"Playingback file:", my_file, "\" 1")
+	fmt.Fprintln(os.Stdout, "VERBOSE \"Playingback file: "+my_file+"\" 1")
 	//os.Stdout.Sync()
 	res = agi_response()
 	//Playback file
 	fmt.Fprintln(os.Stdout, "STREAM FILE", my_file, "\"\"")
 	//os.Stdout.Sync()
 	res = agi_response()
+	if res[1] == "-1" {
+		fmt.Fprintln(os.Stderr, "Failed to playback file")
+		os.Exit(1)
+	}
 	os.Exit(0)
 }
 
@@ -83,17 +87,14 @@ func agi_response() []string {
 	line = strings.TrimRight(line, "\n")
 	reply := strings.SplitN(line, " ", 3)
 
-	if len(reply) < 2 {
-		fmt.Fprintln(os.Stderr, "AGI unexpected error!")
-		return []string{"-1", "-1", "-1"}
-	}
-	if reply[0] != "200" {
+	if len(reply) < 2 || reply[0] != "200" {
 		fmt.Fprintln(os.Stderr, "AGI command failed:", reply)
+		return []string{"-1", "-1", "-1"}
 	} else {
 		reply[1] = strings.TrimPrefix(reply[1], "result=")
-	}
-	if debug {
-		fmt.Fprintln(os.Stderr, "AGI command returned:", reply)
+		if debug {
+			fmt.Fprintln(os.Stderr, "AGI command returned:", reply)
+		}
 	}
 	return reply
 }
