@@ -17,8 +17,10 @@ import (
 	"strings"
 )
 
-var debug = true
-var agi_reader = bufio.NewReaderSize(os.Stdin, 0)
+var (
+	debug = true
+	agi_reader = bufio.NewReaderSize(os.Stdin, 0)
+)
 
 func main() {
 	var res []string
@@ -83,18 +85,19 @@ func agi_init(agi_arg map[string]string) {
 
 func agi_response() []string {
 	// Read back AGI repsonse
+	reply := make([]string, 3)
 	line, _ := agi_reader.ReadString('\n')
 	line = strings.TrimRight(line, "\n")
-	reply := strings.SplitN(line, " ", 3)
+	reply = strings.SplitN(line, " ", 3)
 
-	if len(reply) < 2 || reply[0] != "200" {
-		fmt.Fprintln(os.Stderr, "AGI command failed:", reply)
-		return []string{"-1", "-1", "-1"}
-	} else {
+	if reply[0] == "200" {
 		reply[1] = strings.TrimPrefix(reply[1], "result=")
 		if debug {
 			fmt.Fprintln(os.Stderr, "AGI command returned:", reply)
 		}
+	} else {
+		fmt.Fprintln(os.Stderr, "AGI command failed:", reply)
+		reply = []string{"-1", "-1", "-1"}
 	}
 	return reply
 }
