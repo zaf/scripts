@@ -6,13 +6,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const (
 	PORT         = 4573
 	RECV_BUF_LEN = 4096
-	TIMEOUT      = 30
 )
 
 func main() {
@@ -38,18 +36,17 @@ func main() {
 func agi_conn_handle(client net.Conn) {
 	rcv_chan := make(chan string)
 	snd_chan := make(chan string)
-	//go agi_parse(rcv_chan, snd_chan)
+	agi_data := make(map[string]string)
+	//Receive network data and send to channel
 	go func(client net.Conn, rcv_chan chan<- string) {
 		for {
 			buf := make([]byte, RECV_BUF_LEN)
-			client.SetReadDeadline(time.Now().Add(TIMEOUT * time.Second))
 
 			n, err := client.Read(buf)
 			if err != nil || n == 0 {
 				log.Println(err)
 				break
 			}
-			//log.Printf("Got %d bytes: %s", n, string(buf))
 			if strings.Contains(string(buf[0:n]), "HANGUP") {
 				log.Println("Client hung up.")
 				break
@@ -61,7 +58,7 @@ func agi_conn_handle(client net.Conn) {
 		close(rcv_chan)
 		return
 	}(client, rcv_chan)
-
+	//Read channel data and send to network
 	go func(snd_chan <-chan string) {
 		for {
 			select {
@@ -79,35 +76,20 @@ func agi_conn_handle(client net.Conn) {
 			}
 		}
 	}(snd_chan)
-	agi_parse(rcv_chan, snd_chan)
+
+	agi_init(rcv_chan, agi_data)
+	agi_logic(rcv_chan, snd_chan, agi_data)
+
+	client.Close()
 	return
 }
 
-func agi_parse(rcv_chan <-chan string, snd_chan chan<- string) {
-	agi_data := make(map[string]string)
+func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[string]string) {
+	//Do AGI stuff
 	reply := make([]string, 3)
-LOOP:
-	for msg := range rcv_chan {
-		for _, agi_str := range strings.SplitAfter(msg, "\n") {
-			if len(agi_str) == 1 {
-				break LOOP
-			}
-			input_str := strings.SplitN(agi_str, ": ", 2)
-			if len(input_str) == 2 {
-				input_str[0] = strings.TrimPrefix(input_str[0], "agi_")
-				input_str[1] = strings.TrimRight(input_str[1], "\n")
-				agi_data[input_str[0]] = input_str[1]
-			}
-		}
-	}
-	log.Println("Finished reading AGI vars:")
-	for key, value := range agi_data {
-		log.Println(key + "\t\t" + value)
-	}
-
-	if agi_data["arg_1"] == "" {
+	if agi_arg["arg_1"] == "" {
 		log.Println("No arguments passed, exiting")
-		goto HANGUP
+		goto END
 	}
 
 	snd_chan <- "VERBOSE \"Staring an echo test.\" 3\n"
@@ -125,10 +107,10 @@ LOOP:
 		}
 	}
 	//Playback a file and run the echo() app
-	snd_chan <- "STREAM FILE " + agi_data["arg_1"] + "  \"\"\n"
+	snd_chan <- "STREAM FILE " + agi_arg["arg_1"] + "  \"\"\n"
 	reply = agi_response(<-rcv_chan)
 	if reply[1] == "-1" {
-		log.Println("Failed to playback file", agi_data["arg_1"])
+		log.Println("Failed to playback file", agi_arg["arg_1"])
 	}
 	snd_chan <- "EXEC echo\n"
 	reply = agi_response(<-rcv_chan)
@@ -139,6 +121,36 @@ LOOP:
 HANGUP:
 	snd_chan <- "HANGUP\n"
 	reply = agi_response(<-rcv_chan)
+END:
+	return
+}
+
+func agi_init(rcv_chan <-chan string, agi_arg map[string]string) {
+	//Read and store AGI input
+LOOP:
+	for msg := range rcv_chan {
+		for _, agi_str := range strings.SplitAfter(msg, "\n") {
+			if len(agi_str) == 1 {
+				break LOOP
+			}
+			if agi_str == "" {
+				continue
+			}
+			input_str := strings.SplitN(agi_str, ": ", 2)
+			if len(input_str) == 2 {
+				input_str[0] = strings.TrimPrefix(input_str[0], "agi_")
+				input_str[1] = strings.TrimRight(input_str[1], "\n")
+				agi_arg[input_str[0]] = input_str[1]
+			} else {
+				log.Println("No AGI Input:", input_str)
+				return
+			}
+		}
+	}
+	log.Println("Finished reading AGI vars:")
+	for key, value := range agi_arg {
+		log.Println(key + "\t\t" + value)
+	}
 	return
 }
 
@@ -151,7 +163,7 @@ func agi_response(res string) []string {
 		reply[1] = strings.TrimPrefix(reply[1], "result=")
 		log.Println("AGI command returned:", reply)
 	} else {
-		log.Println("AGI command failed:", reply)
+		log.Println("AGI unexpected response:", reply)
 		reply = []string{"-1", "-1", "-1"}
 	}
 	return reply
