@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ const (
 )
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Println("Starting FastAGI server...")
 
 	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(PORT))
@@ -103,15 +105,15 @@ LOOP:
 	}
 
 	snd_chan <- "VERBOSE \"HELLO!\" 3\n"
-	reply := <- rcv_chan
+	reply := <-rcv_chan
 	log.Println(reply)
 
 	snd_chan <- "VERBOSE \"HELLO AGAIN!\" 3\n"
-	reply = <- rcv_chan
+	reply = <-rcv_chan
 	log.Println(reply)
 
 	snd_chan <- "STREAM FILE echo-test \"\"\n"
-	reply = <- rcv_chan
+	reply = <-rcv_chan
 	log.Println(reply)
 	return
 }
