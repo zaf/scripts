@@ -1,9 +1,18 @@
+/*
+	A concurrent FastAGI server example in go
+
+	Copyright (C) 2013, Lefteris Zafiris <zaf.000@gmail.com>
+
+	This program is free software, distributed under the terms of
+	the GNU General Public License Version 2. See the LICENSE file
+	at the top of the source tree.
+*/
+
 package main
 
 import (
 	"log"
 	"net"
-	"runtime"
 	"strconv"
 	"strings"
 )
@@ -14,7 +23,6 @@ const (
 )
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Println("Starting FastAGI server...")
 
 	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(PORT))
