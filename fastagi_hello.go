@@ -38,7 +38,7 @@ func main() {
 func agi_conn_handle(client net.Conn) {
 	rcv_chan := make(chan string)
 	snd_chan := make(chan string)
-	go agi_parse(rcv_chan, snd_chan)
+	//go agi_parse(rcv_chan, snd_chan)
 	go func(client net.Conn, rcv_chan chan<- string) {
 		for {
 			buf := make([]byte, RECV_BUF_LEN)
@@ -79,12 +79,13 @@ func agi_conn_handle(client net.Conn) {
 			}
 		}
 	}(snd_chan)
-
+	agi_parse(rcv_chan, snd_chan)
 	return
 }
 
 func agi_parse(rcv_chan <-chan string, snd_chan chan<- string) {
 	agi_data := make(map[string]string)
+	reply := make([]string, 3)
 LOOP:
 	for msg := range rcv_chan {
 		for _, agi_str := range strings.SplitAfter(msg, "\n") {
@@ -104,16 +105,54 @@ LOOP:
 		log.Println(key + "\t\t" + value)
 	}
 
-	snd_chan <- "VERBOSE \"HELLO!\" 3\n"
-	reply := <-rcv_chan
-	log.Println(reply)
+	if agi_data["arg_1"] == "" {
+		log.Println("No arguments passed, exiting")
+		goto HANGUP
+	}
 
-	snd_chan <- "VERBOSE \"HELLO AGAIN!\" 3\n"
-	reply = <-rcv_chan
-	log.Println(reply)
+	snd_chan <- "VERBOSE \"Staring an echo test.\" 3\n"
+	reply = agi_response(<-rcv_chan)
 
-	snd_chan <- "STREAM FILE echo-test \"\"\n"
-	reply = <-rcv_chan
-	log.Println(reply)
+	//Check channel status and answer if not answered already
+	snd_chan <- "CHANNEL STATUS\n"
+	reply = agi_response(<-rcv_chan)
+	if reply[1] == "4" {
+		snd_chan <- "ANSWER\n"
+		reply = agi_response(<-rcv_chan)
+		if reply[1] == "-1" {
+			log.Println("Failed to answer channel")
+			goto HANGUP
+		}
+	}
+	//Playback a file and run the echo() app
+	snd_chan <- "STREAM FILE " + agi_data["arg_1"] + "  \"\"\n"
+	reply = agi_response(<-rcv_chan)
+	if reply[1] == "-1" {
+		log.Println("Failed to playback file", agi_data["arg_1"])
+	}
+	snd_chan <- "EXEC echo\n"
+	reply = agi_response(<-rcv_chan)
+	if reply[1] == "-2" {
+		log.Println("Failed to find application")
+	}
+
+HANGUP:
+	snd_chan <- "HANGUP\n"
+	reply = agi_response(<-rcv_chan)
 	return
+}
+
+func agi_response(res string) []string {
+	// Read back AGI repsonse
+	res = strings.TrimRight(res, "\n")
+	reply := strings.SplitN(res, " ", 3)
+
+	if reply[0] == "200" {
+		reply[1] = strings.TrimPrefix(reply[1], "result=")
+		log.Println("AGI command returned:", reply)
+	} else {
+		log.Println("AGI command failed:", reply)
+		reply = []string{"-1", "-1", "-1"}
+	}
+	return reply
 }
