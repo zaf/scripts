@@ -81,6 +81,7 @@ func agi_conn_handle(client net.Conn) {
 	agi_logic(rcv_chan, snd_chan, agi_data)
 
 	client.Close()
+	agi_data = nil
 	return
 }
 
@@ -121,7 +122,9 @@ func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[strin
 HANGUP:
 	snd_chan <- "HANGUP\n"
 	reply = agi_response(<-rcv_chan)
+	close(snd_chan)
 END:
+	reply = nil
 	return
 }
 
