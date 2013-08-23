@@ -46,7 +46,7 @@ func agi_conn_handle(client net.Conn) {
 	snd_chan := make(chan string)
 	agi_data := make(map[string]string)
 	//Receive network data and send to channel
-	go func(client net.Conn, rcv_chan chan<- string) {
+	go func() {
 		for {
 			buf := make([]byte, RECV_BUF_LEN)
 
@@ -65,9 +65,9 @@ func agi_conn_handle(client net.Conn) {
 		client.Close()
 		close(rcv_chan)
 		return
-	}(client, rcv_chan)
+	}()
 	//Read channel data and send to network
-	go func(snd_chan <-chan string) {
+	go func() {
 		for {
 			select {
 			case agi_msg, ok := <-snd_chan:
@@ -83,7 +83,7 @@ func agi_conn_handle(client net.Conn) {
 				}
 			}
 		}
-	}(snd_chan)
+	}()
 
 	agi_init(rcv_chan, agi_data)
 	agi_logic(rcv_chan, snd_chan, agi_data)
