@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	debug = true
+	debug      = true
 	agi_reader = bufio.NewReaderSize(os.Stdin, 0)
 )
 
