@@ -18,12 +18,14 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 )
 
 const (
 	DEBUG = true
 	PORT  = 4573
+	RUNS  = 10000
 )
 
 func main() {
@@ -32,16 +34,19 @@ func main() {
 	}
 	rand.Seed(time.Now().UTC().UnixNano())
 	host := os.Args[1]
-	for i := 0; i < 10000; i++ {
-		go func(i int) {
+	var wg sync.WaitGroup
+	wg.Add(RUNS)
+
+	//Spawn Connections to AGI server
+	for i := 0; i < RUNS; i++ {
+		go func() {
+			defer wg.Done()
 			conn, err := net.Dial("tcp", host+":"+strconv.Itoa(PORT))
 			if err != nil {
 				log.Println(err)
 				return
 			}
-
 			init_data := agi_init()
-			//log.Print("Starting connection:", strconv.Itoa(i))
 			for key, value := range init_data {
 				fmt.Fprintf(conn, key+": "+value+"\n")
 			}
@@ -54,43 +59,46 @@ func main() {
 			fmt.Fprintf(conn, "200 result=0\n")
 			time.Sleep(500 * time.Millisecond)
 			fmt.Fprintf(conn, "HANGUP\n")
-			//log.Print("Closing connection:", strconv.Itoa(i))
 			conn.Close()
-		}(i)
+			return
+		}()
 		time.Sleep(5 * time.Millisecond)
 	}
-	time.Sleep(5 * time.Second)
+	wg.Wait()
 	os.Exit(0)
 }
 
 func agi_init() map[string]string {
-	agi_data := make(map[string]string)
-	agi_data["agi_network"] = "yes"
-	agi_data["agi_network_script"] = "bench"
-	agi_data["agi_request"] = "agi://" + os.Args[1]
-	agi_data["agi_channel"] = "ALSA/default"
-	agi_data["agi_language"] = "en"
-	agi_data["agi_type"] = "Console"
-	agi_data["agi_uniqueid"] = get_rand_str()
-	agi_data["agi_version"] = "0.1"
-	agi_data["agi_callerid"] = "unknown"
-	agi_data["agi_calleridname"] = "unknown"
-	agi_data["agi_callingpres"] = "67"
-	agi_data["agi_callingani2"] = "0"
-	agi_data["agi_callington"] = "0"
-	agi_data["agi_callingtns"] = "0"
-	agi_data["agi_dnid"] = "unknown"
-	agi_data["agi_rdnis"] = "unknown"
-	agi_data["agi_context"] = "default"
-	agi_data["agi_extension"] = "100"
-	agi_data["agi_priority"] = "1"
-	agi_data["agi_enhanced"] = "0.0"
-	agi_data["agi_accountcode"] = ""
-	agi_data["agi_threadid"] = get_rand_str()
-	agi_data["agi_arg_1"] = "echo-test"
+	//Generate AGI initialisation data
+	agi_data := map[string]string{
+		"agi_network":        "yes",
+		"agi_network_script": "bench",
+		"agi_request":        "agi://" + os.Args[1],
+		"agi_channel":        "ALSA/default",
+		"agi_language":       "en",
+		"agi_type":           "Console",
+		"agi_uniqueid":       get_rand_str(),
+		"agi_version":        "0.1",
+		"agi_callerid":       "unknown",
+		"agi_calleridname":   "unknown",
+		"agi_callingpres":    "67",
+		"agi_callingani2":    "0",
+		"agi_callington":     "0",
+		"agi_callingtns":     "0",
+		"agi_dnid":           "unknown",
+		"agi_rdnis":          "unknown",
+		"agi_context":        "default",
+		"agi_extension":      "100",
+		"agi_priority":       "1",
+		"agi_enhanced":       "0.0",
+		"agi_accountcode":    "",
+		"agi_threadid":       get_rand_str(),
+		"agi_arg_1":          "echo-test",
+	}
 	return agi_data
 }
 
 func get_rand_str() string {
-	return strconv.Itoa(10000000 + rand.Intn(89999999))
+	//Generate a 9 digit random numeric string
+	return strconv.Itoa(100000000 + rand.Intn(899999999))
 }
