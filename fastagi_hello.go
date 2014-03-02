@@ -1,7 +1,7 @@
 /*
 	A concurrent FastAGI server example in go
 
-	Copyright (C) 2013, Lefteris Zafiris <zaf.000@gmail.com>
+	Copyright (C) 2013 - 2014, Lefteris Zafiris <zaf.000@gmail.com>
 
 	This program is free software, distributed under the terms of
 	the GNU General Public License Version 2. See the LICENSE file
@@ -113,20 +113,20 @@ func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[strin
 	}
 
 	snd_chan <- "VERBOSE \"Staring an echo test.\" 3\n"
-	reply = agi_response(<-rcv_chan)
-	if reply[0] == "" {
+	reply = agi_response(rcv_chan)
+	if reply[0] != "200" {
 		goto END
 	}
 
 	//Check channel status and answer if not answered already
 	snd_chan <- "CHANNEL STATUS\n"
-	reply = agi_response(<-rcv_chan)
-	if reply[0] == "" {
+	reply = agi_response(rcv_chan)
+	if reply[0] != "200" {
 		goto END
 	} else if reply[1] == "4" {
 		snd_chan <- "ANSWER\n"
-		reply = agi_response(<-rcv_chan)
-		if reply[0] == "" {
+		reply = agi_response(rcv_chan)
+		if reply[0] != "200" {
 			goto END
 		} else if reply[1] == "-1" {
 			log.Println("Failed to answer channel")
@@ -135,15 +135,15 @@ func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[strin
 	}
 	//Playback a file and run the echo() app
 	snd_chan <- "STREAM FILE " + agi_arg["arg_1"] + "  \"\"\n"
-	reply = agi_response(<-rcv_chan)
-	if reply[0] == "" {
+	reply = agi_response(rcv_chan)
+	if reply[0] != "200" {
 		goto END
 	} else if reply[1] == "-1" {
 		log.Println("Failed to playback file", agi_arg["arg_1"])
 	}
-	snd_chan <- "EXEC echo\n"
-	reply = agi_response(<-rcv_chan)
-	if reply[0] == "" {
+	snd_chan <- "EXEC Echo\n"
+	reply = agi_response(rcv_chan)
+	if reply[0] != "200" {
 		goto END
 	} else if reply[1] == "-2" {
 		log.Println("Failed to find application")
@@ -151,19 +151,19 @@ func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[strin
 
 HANGUP:
 	snd_chan <- "HANGUP\n"
-	reply = agi_response(<-rcv_chan)
+	reply = agi_response(rcv_chan)
 END:
 	reply = nil
 	close(snd_chan)
 	return
 }
 
-func agi_init(rcv_chan <-chan string, agi_arg map[string]string) {
+func agi_init(rcv_chan <-chan string, agi_input map[string]string) {
 	//Read and store AGI input
 LOOP:
 	for msg := range rcv_chan {
 		for _, agi_str := range strings.SplitAfter(msg, "\n") {
-			if len(agi_str) == 1 {
+			if agi_str == "\n" {
 				break LOOP
 			}
 			if agi_str == "" {
@@ -173,37 +173,60 @@ LOOP:
 			if len(input_str) == 2 {
 				input_str[0] = strings.TrimPrefix(input_str[0], "agi_")
 				input_str[1] = strings.TrimRight(input_str[1], "\n")
-				agi_arg[input_str[0]] = input_str[1]
+				agi_input[input_str[0]] = input_str[1]
 			} else {
-				log.Println("No AGI Input:", input_str)
+				log.Println("No AGI Compatible Input:", input_str)
 				return
 			}
 		}
 	}
 	if DEBUG {
 		log.Println("Finished reading AGI vars:")
-		for key, value := range agi_arg {
+		for key, value := range agi_input {
 			log.Println(key + "\t\t" + value)
 		}
 	}
 	return
 }
 
-func agi_response(res string) []string {
-	// Read back AGI repsonse
-	res = strings.TrimRight(res, "\n")
-	reply := strings.SplitN(res, " ", 3)
-
-	if reply[0] == "200" {
-		reply[1] = strings.TrimPrefix(reply[1], "result=")
-		if DEBUG {
-			log.Println("AGI command returned:", reply)
+func agi_response(rcv_chan <-chan string) []string {
+	//Parse and return AGI responce
+	reply := []string{"", "", ""}
+	for msg := range rcv_chan {
+		msg = strings.TrimRight(msg, "\n\r")
+		if reply[0] == "520" {
+			break
 		}
-	} else {
-		if DEBUG {
-			log.Println("AGI unexpected response:", reply)
+		reply = strings.SplitN(msg, " ", 3)
+		if reply[0] == "200" {
+			reply[1] = strings.TrimPrefix(reply[1], "result=")
+			break
+		} else if reply[0] == "510" {
+			reply[1] = "Invalid or unknown command."
+			reply[2] = ""
+			break
+		} else if reply[0] == "511" {
+			reply[1] = "Command Not Permitted on a dead channel."
+			reply[2] = ""
+			break
+		} else if reply[0] == "520" {
+			reply[0] = "520"
+			reply[1] = "Invalid command syntax."
+			reply[2] = ""
+			break
+		} else if reply[0] == "520-Invalid" {
+			reply[0] = "520"
+			reply[1] = "Invalid command syntax."
+			reply[2] = ""
+		} else {
+			if DEBUG {
+				log.Println("AGI unexpected response:", reply)
+			}
+			return []string{"ERR", "", ""}
 		}
-		reply = []string{"", "", ""}
+	}
+	if DEBUG {
+		log.Println("AGI command returned:", reply)
 	}
 	return reply
 }
