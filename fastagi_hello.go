@@ -11,6 +11,7 @@
 package main
 
 import (
+	"bufio"
 	"log"
 	"net"
 	"strconv"
@@ -20,7 +21,6 @@ import (
 const (
 	DEBUG        = true
 	PORT         = 4573
-	RECV_BUF_LEN = 4096
 )
 
 func main() {
@@ -51,20 +51,18 @@ func agi_conn_handle(client net.Conn) {
 	//Receive network data and send to channel
 	go func() {
 		for {
-			buf := make([]byte, RECV_BUF_LEN)
-
-			n, err := client.Read(buf)
-			if err != nil || n == 0 {
+			line, err := bufio.NewReader(client).ReadString('\n')
+			if err != nil {
 				log.Println(err)
 				break
 			}
-			if strings.Contains(string(buf[0:n]), "HANGUP") {
+			if line == "HANGUP\n" {
 				if DEBUG {
 					log.Println("Client hung up.")
 				}
 				break
 			}
-			rcv_chan <- string(buf[0:n])
+			rcv_chan <- line
 		}
 		if DEBUG {
 			log.Printf("Connection from %v closed.", client.RemoteAddr())
@@ -160,24 +158,18 @@ END:
 
 func agi_init(rcv_chan <-chan string, agi_input map[string]string) {
 	//Read and store AGI input
-LOOP:
-	for msg := range rcv_chan {
-		for _, agi_str := range strings.SplitAfter(msg, "\n") {
-			if agi_str == "\n" {
-				break LOOP
-			}
-			if agi_str == "" {
-				continue
-			}
-			input_str := strings.SplitN(agi_str, ": ", 2)
-			if len(input_str) == 2 {
-				input_str[0] = strings.TrimPrefix(input_str[0], "agi_")
-				input_str[1] = strings.TrimRight(input_str[1], "\n")
-				agi_input[input_str[0]] = input_str[1]
-			} else {
-				log.Println("No AGI Compatible Input:", input_str)
-				return
-			}
+	for agi_str := range rcv_chan {
+		if agi_str == "\n" {
+			break
+		}
+		input_str := strings.SplitN(agi_str, ": ", 2)
+		if len(input_str) == 2 {
+			input_str[0] = strings.TrimPrefix(input_str[0], "agi_")
+			input_str[1] = strings.TrimRight(input_str[1], "\n")
+			agi_input[input_str[0]] = input_str[1]
+		} else {
+			log.Println("No AGI Compatible Input:", input_str)
+			break
 		}
 	}
 	if DEBUG {
@@ -191,7 +183,7 @@ LOOP:
 
 func agi_response(rcv_chan <-chan string) []string {
 	//Parse and return AGI responce
-	reply := []string{"", "", ""}
+	reply := make([]string, 3)
 	for msg := range rcv_chan {
 		msg = strings.TrimRight(msg, "\n\r")
 		if reply[0] == "520" {

@@ -116,9 +116,7 @@ func agi_response() []string {
 		reply[2], _ = agi_reader.ReadString('\n')
 		reply[2] = "Proper usage follows: " + strings.TrimRight(reply[2], "\n")
 	} else {
-		if debug {
-			fmt.Fprintln(os.Stderr, "AGI unexpected response:", reply)
-		}
+		fmt.Fprintln(os.Stderr, "AGI unexpected response:", reply)
 		return []string{"ERR", "", ""}
 	}
 
