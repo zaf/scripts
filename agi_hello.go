@@ -13,6 +13,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
@@ -26,49 +27,44 @@ func main() {
 	var res []string
 	agi_data := make(map[string]string)
 
-	agi_init(agi_data)
+	agi_parse_init(agi_data)
 	if agi_data["arg_1"] == "" {
-		fmt.Fprintln(os.Stderr, "No arguments passed, exiting")
-		os.Exit(1)
+		log.Fatalln("No arguments passed, exiting")
 	}
 	my_file := agi_data["arg_1"]
 
 	//Check channel status
 	fmt.Fprintln(os.Stdout, "CHANNEL STATUS")
-	res = agi_response()
+	res = agi_parse_response()
 	if res[0] != "200" {
-		goto FAIL
+		log.Fatalln("Failed to get Channel status")
 	}
 	//Answer channel if not answered already
-	if res[1] == "4" {
+	if res[1] != "6" {
 		fmt.Fprintln(os.Stdout, "ANSWER")
-		res = agi_response()
+		res = agi_parse_response()
 		if res[0] != "200" || res[1] == "-1" {
-			fmt.Fprintln(os.Stderr, "Failed to answer channel")
-			goto FAIL
+			log.Fatalln("Failed to answer channel")
 		}
 	}
 	//Display on the console the file we are about to playback
 	fmt.Fprintln(os.Stdout, "VERBOSE \"Playingback file: "+my_file+"\" 1")
 	//os.Stdout.Sync()
-	res = agi_response()
+	res = agi_parse_response()
 	if res[0] != "200" {
-		goto FAIL
+		log.Fatalln("VERBOSE failed")
 	}
 	//Playback file
 	fmt.Fprintln(os.Stdout, "STREAM FILE", my_file, "\"\"")
 	//os.Stdout.Sync()
-	res = agi_response()
+	res = agi_parse_response()
 	if res[0] != "200" || res[1] == "-1" {
-		fmt.Fprintln(os.Stderr, "Failed to playback file")
-		goto FAIL
+		log.Fatalln("Failed to playback file", my_file)
 	}
 	os.Exit(0)
-FAIL:
-	os.Exit(1)
 }
 
-func agi_init(agi_arg map[string]string) {
+func agi_parse_init(agi_arg map[string]string) {
 	//Read and store AGI input
 	for {
 		line, err := agi_reader.ReadString('\n')
@@ -84,14 +80,14 @@ func agi_init(agi_arg map[string]string) {
 	}
 
 	if debug {
-		fmt.Fprintln(os.Stderr, "Finished reading AGI vars:")
+		log.Println("Finished reading AGI vars:")
 		for key, value := range agi_arg {
-			fmt.Fprintln(os.Stderr, key+"\t\t"+value)
+			log.Println(key + "\t\t" + value)
 		}
 	}
 }
 
-func agi_response() []string {
+func agi_parse_response() []string {
 	// Read back AGI repsonse
 	reply := make([]string, 3)
 	line, _ := agi_reader.ReadString('\n')
@@ -116,12 +112,12 @@ func agi_response() []string {
 		reply[2], _ = agi_reader.ReadString('\n')
 		reply[2] = "Proper usage follows: " + strings.TrimRight(reply[2], "\n")
 	} else {
-		fmt.Fprintln(os.Stderr, "AGI unexpected response:", reply)
+		log.Println("AGI unexpected response:", reply)
 		return []string{"ERR", "", ""}
 	}
 
 	if debug {
-		fmt.Fprintln(os.Stderr, "AGI command returned:", reply)
+		log.Println("AGI command returned:", reply)
 	}
 	return reply
 }
