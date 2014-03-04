@@ -13,7 +13,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -32,12 +31,14 @@ const (
 	AGI_ARG1 = "echo-test" //Argument to pass to the FastAGI server
 )
 
-var shutdown = false
+var shutdown bool = false
+var last_error error
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	if len(os.Args) != 2 {
-		log.Fatalln("Usage: ", os.Args[0], "host")
+		fmt.Println("Usage: ", os.Args[0], "host")
+		os.Exit(1)
 	}
 	rand.Seed(time.Now().UTC().UnixNano())
 	ch1 := make(chan bool)
@@ -47,12 +48,13 @@ func main() {
 	shutdown = true
 	fmt.Println("Stopping...")
 	<-ch1
+	os.Exit(0)
 }
 
 func agi_session(host string, c chan<- bool) {
 	//Spawn Connections to AGI server
 	count := 0
-	fail  := 0
+	fail := 0
 	delay := time.Duration(1000/RUNS_SEC/SESS_RUN) * time.Millisecond
 	half_duration := time.Duration(1000*SESS_DUR/2) * time.Millisecond
 	ticker := time.Tick(delay)
@@ -65,7 +67,7 @@ func agi_session(host string, c chan<- bool) {
 					conn, err := net.Dial("tcp", host+":"+strconv.Itoa(PORT))
 					if err != nil {
 						fail++
-						//log.Println(err)
+						last_error = err
 						return
 					}
 					count++
@@ -93,7 +95,10 @@ func agi_session(host string, c chan<- bool) {
 		for !shutdown {
 			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:  ",
 				delay, "\nSessions per run:", SESS_RUN, "\nSession duration:", 2*half_duration)
-			fmt.Println("\nActive Sessions:", count,"\nFailed sessions:", fail)
+			fmt.Println("\nActive Sessions:", count, "\nFailed sessions:", fail)
+			if last_error != nil {
+				fmt.Println("Last error:", last_error)
+			}
 			time.Sleep(500 * time.Millisecond)
 			fmt.Print("\033[2J\033[H")
 		}
