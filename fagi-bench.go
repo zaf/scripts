@@ -53,8 +53,9 @@ func main() {
 
 func agi_session(host string, c chan<- bool) {
 	//Spawn Connections to AGI server
-	count := 0
-	fail := 0
+	active := 0
+	count  := 0
+	fail   := 0
 	delay := time.Duration(1000/RUNS_SEC/SESS_RUN) * time.Millisecond
 	half_duration := time.Duration(1000*SESS_DUR/2) * time.Millisecond
 	ticker := time.Tick(delay)
@@ -70,7 +71,7 @@ func agi_session(host string, c chan<- bool) {
 						last_error = err
 						return
 					}
-					count++
+					active++
 					init_data := agi_init(host)
 					for key, value := range init_data {
 						fmt.Fprintf(conn, key+": "+value+"\n")
@@ -83,7 +84,8 @@ func agi_session(host string, c chan<- bool) {
 					time.Sleep(half_duration)
 					conn.Write([]byte("HANGUP\n"))
 					conn.Close()
-					count--
+					active--
+					count++
 					return
 				}()
 				<-ticker
@@ -95,7 +97,7 @@ func agi_session(host string, c chan<- bool) {
 		for !shutdown {
 			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:  ",
 				delay, "\nSessions per run:", SESS_RUN, "\nSession duration:", 2*half_duration)
-			fmt.Println("\nActive Sessions:", count, "\nFailed sessions:", fail)
+			fmt.Println("\nFastAGI Sessions\nActive:", active, "\nCompleted:", count, "\nFailed:", fail)
 			if last_error != nil {
 				fmt.Println("Last error:", last_error)
 			}
