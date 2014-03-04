@@ -1,5 +1,5 @@
 /*
-	A FastAGI benchmark in go
+	A FastAGI paraller benchmark in go
 
 	Copyright (C) 2013 - 2014, Lefteris Zafiris <zaf.000@gmail.com>
 
@@ -17,67 +17,102 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
 )
 
+//General benchmark parameters
 const (
-	DEBUG = true
-	PORT  = 4573
-	RUNS  = 10000
+	PORT     = 4573        //FastAGI server port
+	RUNS_SEC = 10          //Number of runs per second
+	SESS_RUN = 2           //Sessions per run
+	SESS_DUR = 2           //Session duration in sec
+	AGI_ARG1 = "echo-test" //Argument to pass to the FastAGI server
 )
 
+var shutdown = false
+
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	if len(os.Args) != 2 {
 		log.Fatalln("Usage: ", os.Args[0], "host")
 	}
 	rand.Seed(time.Now().UTC().UnixNano())
-	host := os.Args[1]
-	var wg sync.WaitGroup
-	wg.Add(RUNS)
-
-	//Spawn Connections to AGI server
-	for i := 0; i < RUNS; i++ {
-		go func() {
-			defer wg.Done()
-			conn, err := net.Dial("tcp", host+":"+strconv.Itoa(PORT))
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			init_data := agi_init()
-			for key, value := range init_data {
-				fmt.Fprintf(conn, key+": "+value+"\n")
-			}
-			fmt.Fprintf(conn, "\n")
-			bufio.NewReader(conn).ReadString('\n')
-			time.Sleep(500 * time.Millisecond)
-			fmt.Fprintf(conn, "200 result=0\n")
-			bufio.NewReader(conn).ReadString('\n')
-			time.Sleep(500 * time.Millisecond)
-			fmt.Fprintf(conn, "200 result=0\n")
-			time.Sleep(500 * time.Millisecond)
-			fmt.Fprintf(conn, "HANGUP\n")
-			conn.Close()
-			return
-		}()
-		time.Sleep(5 * time.Millisecond)
-	}
-	wg.Wait()
-	os.Exit(0)
+	ch1 := make(chan bool)
+	fmt.Print("\033[2J\033[H")
+	go agi_session(os.Args[1], ch1)
+	bufio.NewReader(os.Stdin).ReadString('\n')
+	shutdown = true
+	fmt.Println("Stopping...")
+	<-ch1
 }
 
-func agi_init() map[string]string {
+func agi_session(host string, c chan<- bool) {
+	//Spawn Connections to AGI server
+	count := 0
+	fail  := 0
+	delay := time.Duration(1000/RUNS_SEC/SESS_RUN) * time.Millisecond
+	half_duration := time.Duration(1000*SESS_DUR/2) * time.Millisecond
+	ticker := time.Tick(delay)
+	wg := sync.WaitGroup{}
+	wg.Add(SESS_RUN)
+	for i := 0; i < SESS_RUN; i++ {
+		go func(ticker <-chan time.Time) {
+			for !shutdown {
+				go func() {
+					conn, err := net.Dial("tcp", host+":"+strconv.Itoa(PORT))
+					if err != nil {
+						fail++
+						//log.Println(err)
+						return
+					}
+					count++
+					init_data := agi_init(host)
+					for key, value := range init_data {
+						fmt.Fprintf(conn, key+": "+value+"\n")
+					}
+					fmt.Fprintf(conn, "\n")
+					bufio.NewReader(conn).ReadString('\n')
+					time.Sleep(half_duration)
+					conn.Write([]byte("200 result=0\n"))
+					bufio.NewReader(conn).ReadString('\n')
+					time.Sleep(half_duration)
+					conn.Write([]byte("HANGUP\n"))
+					conn.Close()
+					count--
+					return
+				}()
+				<-ticker
+			}
+			wg.Done()
+		}(ticker)
+	}
+	go func() {
+		for !shutdown {
+			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:  ",
+				delay, "\nSessions per run:", SESS_RUN, "\nSession duration:", 2*half_duration)
+			fmt.Println("\nActive Sessions:", count,"\nFailed sessions:", fail)
+			time.Sleep(500 * time.Millisecond)
+			fmt.Print("\033[2J\033[H")
+		}
+	}()
+	wg.Wait()
+	c <- true
+	return
+}
+
+func agi_init(host string) map[string]string {
 	//Generate AGI initialisation data
 	agi_data := map[string]string{
 		"agi_network":        "yes",
 		"agi_network_script": "bench",
-		"agi_request":        "agi://" + os.Args[1],
+		"agi_request":        "agi://" + host,
 		"agi_channel":        "ALSA/default",
 		"agi_language":       "en",
 		"agi_type":           "Console",
-		"agi_uniqueid":       get_rand_str(),
+		"agi_uniqueid":       strconv.Itoa(100000000 + rand.Intn(899999999)),
 		"agi_version":        "0.1",
 		"agi_callerid":       "unknown",
 		"agi_calleridname":   "unknown",
@@ -92,13 +127,8 @@ func agi_init() map[string]string {
 		"agi_priority":       "1",
 		"agi_enhanced":       "0.0",
 		"agi_accountcode":    "",
-		"agi_threadid":       get_rand_str(),
-		"agi_arg_1":          "echo-test",
+		"agi_threadid":       strconv.Itoa(100000000 + rand.Intn(899999999)),
+		"agi_arg_1":          AGI_ARG1,
 	}
 	return agi_data
-}
-
-func get_rand_str() string {
-	//Generate a 9 digit random numeric string
-	return strconv.Itoa(100000000 + rand.Intn(899999999))
 }

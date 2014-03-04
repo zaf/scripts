@@ -14,6 +14,7 @@ import (
 	"bufio"
 	"log"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -24,6 +25,7 @@ const (
 )
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Println("Starting FastAGI server...")
 
 	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(PORT))
