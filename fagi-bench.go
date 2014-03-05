@@ -26,7 +26,7 @@ import (
 const (
 	DEBUG    = true        //Enable detailed statistics output to file bench.csv
 	PORT     = 4573        //FastAGI server port
-	RUNS_SEC = 10         //Number of runs per second
+	RUNS_SEC = 10          //Number of runs per second
 	SESS_RUN = 5           //Sessions per run
 	SESS_DUR = 2           //Session duration in sec
 	AGI_ARG1 = "echo-test" //Argument to pass to the FastAGI server
@@ -75,12 +75,12 @@ func agi_session(host string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	var last_error error
 	active, count, fail := 0, 0, 0
-	delay := time.Duration(1000000000/RUNS_SEC/SESS_RUN) * time.Nanosecond
+	delay := time.Duration(1000000000/RUNS_SEC) * time.Nanosecond
 	half_duration := time.Duration(1000000000*SESS_DUR/2) * time.Nanosecond
-	ticker := time.Tick(delay)
 	wg1 := sync.WaitGroup{}
 	wg1.Add(SESS_RUN + 1)
 	for i := 0; i < SESS_RUN; i++ {
+		ticker := time.Tick(delay)
 		go func(ticker <-chan time.Time) {
 			defer wg1.Done()
 			wg2 := sync.WaitGroup{}
@@ -127,7 +127,7 @@ func agi_session(host string, wg *sync.WaitGroup) {
 		for {
 			fmt.Print("\033[2J\033[H")
 			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:  ",
-				delay*SESS_RUN, "\nSessions per run:", SESS_RUN, "\nSession duration:", 2*half_duration)
+				delay, "\nSessions per run:", SESS_RUN, "\nSession duration:", 2*half_duration)
 			fmt.Println("\nFastAGI Sessions\nActive:", active, "\nCompleted:", count, "\nFailed:", fail)
 			if last_error != nil {
 				fmt.Println("Last error:", last_error)
