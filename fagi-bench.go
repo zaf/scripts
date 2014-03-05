@@ -76,7 +76,7 @@ func agi_session(host string, wg *sync.WaitGroup) {
 	var last_error error
 	active, count, fail := 0, 0, 0
 	delay := time.Duration(1000000000/RUNS_SEC) * time.Nanosecond
-	half_duration := time.Duration(1000000000*SESS_DUR/2) * time.Nanosecond
+	duration := time.Duration(1000000000*SESS_DUR) * time.Nanosecond
 	wg1 := sync.WaitGroup{}
 	wg1.Add(SESS_RUN + 1)
 	for i := 0; i < SESS_RUN; i++ {
@@ -103,17 +103,17 @@ func agi_session(host string, wg *sync.WaitGroup) {
 					}
 					fmt.Fprintf(conn, "\n")
 					bufio.NewReader(conn).ReadString('\n')
-					time.Sleep(half_duration)
+					time.Sleep(duration/2)
 					conn.Write([]byte("200 result=0\n"))
 					bufio.NewReader(conn).ReadString('\n')
-					time.Sleep(half_duration)
+					time.Sleep(duration/2)
 					conn.Write([]byte("HANGUP\n"))
 					conn.Close()
 					elapsed := time.Since(start)
 					active--
 					count++
 					if DEBUG {
-						_, last_error = writer.WriteString(strconv.Itoa(count) + "," + strconv.Itoa(active) + "," +
+						writer.WriteString(strconv.Itoa(count) + "," + strconv.Itoa(active) + "," +
 							strconv.FormatInt(elapsed.Nanoseconds(), 10) + "\n")
 					}
 				}()
@@ -127,7 +127,7 @@ func agi_session(host string, wg *sync.WaitGroup) {
 		for {
 			fmt.Print("\033[2J\033[H")
 			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:  ",
-				delay, "\nSessions per run:", SESS_RUN, "\nSession duration:", 2*half_duration)
+				delay, "\nSessions per run:", SESS_RUN, "\nSession duration:", duration)
 			fmt.Println("\nFastAGI Sessions\nActive:", active, "\nCompleted:", count, "\nFailed:", fail)
 			if last_error != nil {
 				fmt.Println("Last error:", last_error)

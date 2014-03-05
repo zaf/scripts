@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-# Calculate average sessions and duration in FastAGI benchmark results
+# Calculate average number of sessions and duration in FastAGI benchmark results
 #
 # Copyright (C) 2014, Lefteris Zafiris <zaf.000@gmail.com>
 #
@@ -10,25 +10,35 @@
 
 use strict;
 use warnings;
+use autodie;
 
-my $runs = 0;
-my $active  = 0;
-my $duration = 0;
-
-while (<STDIN>) {
-	next if /^#/;
-	/^\d+,(\d+),(\d+)$/;
-	$active+=$1;
-	$duration+=$2;
-	$runs++;
-}
-
-if (!$runs) {
-	print "No data found.\n";
+if (!$ARGV[0] or $ARGV[0] eq '-h' or $ARGV[0] eq '--help') {
+	print "Calculate average values from FastAGI benchmark log files\nUsage: $0 [FILES]\n";
 	exit;
-} else {
-	print "Average values after $runs runs:\n";
-	print "Active Sessions:  " . int($active/$runs) . "\n";
-	print "Session Duration: " . $duration/$runs . " ns\n";
 }
 
+my @file_list = @ARGV;
+
+foreach my $file (@file_list) {
+	my $runs = 0;
+	my $active  = 0;
+	my $duration = 0;
+	open(my $csvfile, "<", "$file");
+	while (<$csvfile>) {
+		if (/^\d+,(\d+),(\d+)$/) {
+			$active+=$1;
+			$duration+=$2;
+			$runs++;
+		}
+	}
+	print "\nResults for $file:\n";
+	if (!$runs) {
+		print "No data found.\n";
+		next;
+	} else {
+		print "Average values after $runs runs:\n";
+		print "Active Sessions:  " . int($active/$runs) . "\n";
+		print "Session Duration: " . $duration/$runs . " ns\n";
+	}
+	close $csvfile;
+}
