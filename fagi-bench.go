@@ -16,7 +16,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"runtime"
+	//"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -24,36 +24,40 @@ import (
 
 //General benchmark parameters
 const (
-	DEBUG    = false       //Enable detailed statistics output to file bench.csv
+	DEBUG    = true        //Enable detailed statistics output to file bench.csv
 	PORT     = 4573        //FastAGI server port
-	RUNS_SEC = 10          //Number of runs per second
-	SESS_RUN = 2           //Sessions per run
-	SESS_DUR = 5           //Session duration in sec
+	RUNS_SEC = 10         //Number of runs per second
+	SESS_RUN = 5           //Sessions per run
+	SESS_DUR = 2           //Session duration in sec
 	AGI_ARG1 = "echo-test" //Argument to pass to the FastAGI server
 )
 
-var shutdown bool = false
+var (
+	shutdown bool = false
+	file     *os.File
+	writer   *bufio.Writer
+)
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	//runtime.GOMAXPROCS(runtime.NumCPU())
 	if len(os.Args) != 2 {
 		fmt.Println("Usage: ", os.Args[0], "host")
 		os.Exit(1)
 	}
-// 	if DEBUG {
-// 		//Open file for writing
-// 		file, err := os.Create("bench.csv")
-// 		if err != nil {
-// 			fmt.Println("Failed to create file:", err)
-// 			os.Exit(1)
-// 		}
-// 		writer := bufio.NewWriter(file)
-// 		defer func() {
-// 			writer.Flush()
-// 			file.Close()
-// 		}()
-// 		writer.WriteString("Starting benchmark at: "+time.Now().String()+"\nrun,active,duration\n")
-// 	}
+	if DEBUG {
+		//Open file for writing
+		file, err := os.Create("bench-" + strconv.FormatInt(time.Now().Unix(), 10) + ".csv")
+		if err != nil {
+			fmt.Println("Failed to create file:", err)
+			os.Exit(1)
+		}
+		writer = bufio.NewWriter(file)
+		defer func() {
+			writer.Flush()
+			file.Close()
+		}()
+		writer.WriteString("#Starting benchmark at: " + time.Now().String() + "\n#qcompleted,active,duration\n")
+	}
 	rand.Seed(time.Now().UTC().UnixNano())
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -61,10 +65,9 @@ func main() {
 	bufio.NewReader(os.Stdin).ReadString('\n')
 	shutdown = true
 	wg.Wait()
-// 	if DEBUG {
-// 		writer.WriteString("Stopped benchmark at: "+time.Now().String()+"\n")
-// 	}
-	os.Exit(0)
+	if DEBUG {
+		writer.WriteString("#Stopped benchmark at: " + time.Now().String())
+	}
 }
 
 func agi_session(host string, wg *sync.WaitGroup) {
@@ -72,8 +75,8 @@ func agi_session(host string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	var last_error error
 	active, count, fail := 0, 0, 0
-	delay := time.Duration(1000/RUNS_SEC/SESS_RUN) * time.Millisecond
-	half_duration := time.Duration(1000*SESS_DUR/2) * time.Millisecond
+	delay := time.Duration(1000000000/RUNS_SEC/SESS_RUN) * time.Nanosecond
+	half_duration := time.Duration(1000000000*SESS_DUR/2) * time.Nanosecond
 	ticker := time.Tick(delay)
 	wg1 := sync.WaitGroup{}
 	wg1.Add(SESS_RUN + 1)
@@ -86,8 +89,6 @@ func agi_session(host string, wg *sync.WaitGroup) {
 				wg2.Add(1)
 				go func() {
 					defer wg2.Done()
-					//var start time.Time
-					//var elapsed time.Duration
 					conn, err := net.Dial("tcp", host+":"+strconv.Itoa(PORT))
 					if err != nil {
 						fail++
@@ -96,7 +97,7 @@ func agi_session(host string, wg *sync.WaitGroup) {
 					}
 					active++
 					init_data := agi_init(host)
-					//start = time.Now()
+					start := time.Now()
 					for key, value := range init_data {
 						fmt.Fprintf(conn, key+": "+value+"\n")
 					}
@@ -108,10 +109,13 @@ func agi_session(host string, wg *sync.WaitGroup) {
 					time.Sleep(half_duration)
 					conn.Write([]byte("HANGUP\n"))
 					conn.Close()
-					//elapsed = time.Since(start)
+					elapsed := time.Since(start)
 					active--
 					count++
-					return
+					if DEBUG {
+						_, last_error = writer.WriteString(strconv.Itoa(count) + "," + strconv.Itoa(active) + "," +
+							strconv.FormatInt(elapsed.Nanoseconds(), 10) + "\n")
+					}
 				}()
 
 			}
@@ -120,28 +124,24 @@ func agi_session(host string, wg *sync.WaitGroup) {
 	}
 	go func() {
 		defer wg1.Done()
-		//var average time.Duration = 0
 		for {
 			fmt.Print("\033[2J\033[H")
 			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:  ",
 				delay*SESS_RUN, "\nSessions per run:", SESS_RUN, "\nSession duration:", 2*half_duration)
 			fmt.Println("\nFastAGI Sessions\nActive:", active, "\nCompleted:", count, "\nFailed:", fail)
-			//if count != 0 {
-			//	average = (average*time.Duration(count-1) + elapsed) / time.Duration(count)
-			//	fmt.Println("\nAverage sessions duration:", average)
-			//}
 			if last_error != nil {
 				fmt.Println("Last error:", last_error)
 			}
 			if shutdown {
 				fmt.Println("Stopping...")
-				if active == 0 { break }
+				if active == 0 {
+					break
+				}
 			}
 			time.Sleep(500 * time.Millisecond)
 		}
 	}()
 	wg1.Wait()
-	return
 }
 
 func agi_init(host string) map[string]string {
