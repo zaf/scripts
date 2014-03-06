@@ -99,7 +99,7 @@ func agi_session(host string, wg *sync.WaitGroup) {
 					init_data := agi_init(host)
 					start := time.Now()
 					for key, value := range init_data {
-						fmt.Println(conn, key+": "+value)
+						fmt.Fprintln(conn, key+": "+value)
 					}
 					fmt.Fprintf(conn, "\n")
 					bufio.NewReader(conn).ReadString('\n')
