@@ -27,8 +27,8 @@ const (
 	DEBUG    = true        //Enable detailed statistics output to file bench.csv
 	PORT     = 4573        //FastAGI server port
 	RUNS_SEC = 10          //Number of runs per second
-	SESS_RUN = 5           //Sessions per run
-	SESS_DUR = 2           //Session duration in sec
+	SESS_RUN = 10          //Sessions per run
+	SESS_DUR = 10          //Session duration in sec
 	AGI_ARG1 = "echo-test" //Argument to pass to the FastAGI server
 )
 
@@ -99,14 +99,14 @@ func agi_session(host string, wg *sync.WaitGroup) {
 					init_data := agi_init(host)
 					start := time.Now()
 					for key, value := range init_data {
-						fmt.Fprintf(conn, key+": "+value+"\n")
+						fmt.Println(conn, key+": "+value)
 					}
 					fmt.Fprintf(conn, "\n")
 					bufio.NewReader(conn).ReadString('\n')
-					time.Sleep(duration/2)
+					time.Sleep(duration / 2)
 					conn.Write([]byte("200 result=0\n"))
 					bufio.NewReader(conn).ReadString('\n')
-					time.Sleep(duration/2)
+					time.Sleep(duration / 2)
 					conn.Write([]byte("HANGUP\n"))
 					conn.Close()
 					elapsed := time.Since(start)

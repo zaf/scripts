@@ -17,33 +17,44 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const (
-	DEBUG = true
-	PORT  = 4573
+	DEBUG     = true      //Print debug information on stderr
+	PORT      = 4573      //Listening port
+	HOST      = "0.0.0.0" //Listening address
+	LISTENERS = 5         //Number of Listeners
 )
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Println("Starting FastAGI server...")
 
-	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(PORT))
+	listener, err := net.Listen("tcp", HOST+":"+strconv.Itoa(PORT))
 	if err != nil {
 		log.Fatalln(err)
 	}
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		if DEBUG {
-			log.Printf("Connected: %v <-> %v\n", conn.LocalAddr(), conn.RemoteAddr())
-		}
-		go agi_conn_handle(conn)
+	defer listener.Close()
+	wg := sync.WaitGroup{}
+	wg.Add(LISTENERS)
+	for i := 0; i < LISTENERS; i++ {
+		go func() {
+			defer wg.Done()
+			for {
+				conn, err := listener.Accept()
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				if DEBUG {
+					log.Printf("Connected: %v <-> %v\n", conn.LocalAddr(), conn.RemoteAddr())
+				}
+				go agi_conn_handle(conn)
+			}
+		}()
 	}
+	wg.Wait()
 }
 
 func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[string]string) {
