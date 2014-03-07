@@ -60,29 +60,34 @@ func main() {
 func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[string]string) {
 	//Do AGI stuff
 	reply := make([]string, 3)
+	defer func() {
+		reply = nil
+		close(snd_chan)
+	}()
+
 	if agi_arg["arg_1"] == "" {
 		if DEBUG {
 			log.Println("No arguments passed, exiting")
 		}
-		goto END
+		goto HANGUP
 	}
 
 	snd_chan <- "VERBOSE \"Staring an echo test.\" 3\n"
 	reply = agi_response(rcv_chan)
 	if reply[0] != "200" {
-		goto END
+		goto HANGUP
 	}
 
 	//Check channel status and answer if not answered already
 	snd_chan <- "CHANNEL STATUS\n"
 	reply = agi_response(rcv_chan)
 	if reply[0] != "200" {
-		goto END
+		goto HANGUP
 	} else if reply[1] != "6" {
 		snd_chan <- "ANSWER\n"
 		reply = agi_response(rcv_chan)
 		if reply[0] != "200" {
-			goto END
+			goto HANGUP
 		} else if reply[1] == "-1" {
 			log.Println("Failed to answer channel")
 			goto HANGUP
@@ -92,14 +97,14 @@ func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[strin
 	snd_chan <- "STREAM FILE " + agi_arg["arg_1"] + "  \"\"\n"
 	reply = agi_response(rcv_chan)
 	if reply[0] != "200" {
-		goto END
+		goto HANGUP
 	} else if reply[1] == "-1" {
 		log.Println("Failed to playback file", agi_arg["arg_1"])
 	}
 	snd_chan <- "EXEC Echo\n"
 	reply = agi_response(rcv_chan)
 	if reply[0] != "200" {
-		goto END
+		goto HANGUP
 	} else if reply[1] == "-2" {
 		log.Println("Failed to find application")
 	}
@@ -107,9 +112,6 @@ func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[strin
 HANGUP:
 	snd_chan <- "HANGUP\n"
 	reply = agi_response(rcv_chan)
-END:
-	reply = nil
-	close(snd_chan)
 	return
 }
 

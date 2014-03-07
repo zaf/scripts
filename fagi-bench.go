@@ -16,9 +16,10 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	//"runtime"
+	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -39,7 +40,7 @@ var (
 )
 
 func main() {
-	//runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	if len(os.Args) != 2 {
 		fmt.Println("Usage: ", os.Args[0], "host")
 		os.Exit(1)
@@ -74,7 +75,7 @@ func agi_session(host string, wg *sync.WaitGroup) {
 	//Spawn Connections to AGI server
 	defer wg.Done()
 	var last_error error
-	active, count, fail := 0, 0, 0
+	var active, count, fail int32 = 0, 0, 0
 	run_delay := time.Duration(1000000000/RUNS_SEC) * time.Nanosecond
 	reply_delay := time.Duration(1000000000*DELAY) * time.Nanosecond
 	wg1 := new(sync.WaitGroup)
@@ -91,11 +92,11 @@ func agi_session(host string, wg *sync.WaitGroup) {
 					defer wg2.Done()
 					conn, err := net.Dial("tcp", host+":"+strconv.Itoa(PORT))
 					if err != nil {
-						fail++
+						atomic.AddInt32(&fail, 1)
 						last_error = err
 						return
 					}
-					active++
+					atomic.AddInt32(&active, 1)
 					scanner := bufio.NewScanner(conn)
 					init_data := agi_init(host)
 					start := time.Now()
@@ -109,10 +110,10 @@ func agi_session(host string, wg *sync.WaitGroup) {
 					}
 					conn.Close()
 					elapsed := time.Since(start)
-					active--
-					count++
+					atomic.AddInt32(&active, -1)
+					atomic.AddInt32(&count, 1)
 					if DEBUG {
-						writer.WriteString(strconv.Itoa(count) + "," + strconv.Itoa(active) + "," +
+						writer.WriteString(strconv.Itoa(int(count)) + "," + strconv.Itoa(int(active)) + "," +
 							strconv.FormatInt(elapsed.Nanoseconds(), 10) + "\n")
 					}
 				}()
