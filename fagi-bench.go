@@ -29,7 +29,7 @@ const (
 	PORT     = 4573        //FastAGI server port
 	RUNS_SEC = 10          //Number of runs per second
 	SESS_RUN = 10          //Sessions per run
-	DELAY    = 0.1         //Delay in AGI responses to the server
+	DELAY    = 100         //Delay in AGI responses to the server (milliseconds)
 	AGI_ARG1 = "echo-test" //Argument to pass to the FastAGI server
 )
 
@@ -46,7 +46,7 @@ func main() {
 		os.Exit(1)
 	}
 	if DEBUG {
-		//Open file for writing
+		//Open log file for writing
 		file, err := os.Create("bench-" + strconv.FormatInt(time.Now().Unix(), 10) + ".csv")
 		if err != nil {
 			fmt.Println("Failed to create file:", err)
@@ -57,12 +57,13 @@ func main() {
 			writer.Flush()
 			file.Close()
 		}()
-		writer.WriteString("#Starting benchmark at: " + time.Now().String() + "\n#qcompleted,active,duration\n")
+		writer.WriteString("#Starting benchmark at: " + time.Now().String() + "\n#completed,active,duration\n")
 	}
 	rand.Seed(time.Now().UTC().UnixNano())
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	go agi_session(os.Args[1], wg)
+	//Start benchmark and wait for users input to stop
+	go agi_bench(os.Args[1], wg)
 	bufio.NewReader(os.Stdin).ReadString('\n')
 	shutdown = true
 	wg.Wait()
@@ -71,15 +72,17 @@ func main() {
 	}
 }
 
-func agi_session(host string, wg *sync.WaitGroup) {
-	//Spawn Connections to AGI server
+func agi_bench(host string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	var last_error error
 	var active, count, fail int32 = 0, 0, 0
+	var avg_dur int64 = 0
+	log_chan := make(chan string, SESS_RUN*2)
+	time_chan := make(chan int64, SESS_RUN*2)
 	run_delay := time.Duration(1000000000/RUNS_SEC) * time.Nanosecond
-	reply_delay := time.Duration(1000000000*DELAY) * time.Nanosecond
+	reply_delay := time.Duration(DELAY) * time.Millisecond
 	wg1 := new(sync.WaitGroup)
-	wg1.Add(SESS_RUN + 1)
+	wg1.Add(SESS_RUN)
+	//Spawn pool of paraller runs
 	for i := 0; i < SESS_RUN; i++ {
 		ticker := time.Tick(run_delay)
 		go func(ticker <-chan time.Time) {
@@ -88,33 +91,38 @@ func agi_session(host string, wg *sync.WaitGroup) {
 			for !shutdown {
 				<-ticker
 				wg2.Add(1)
+				//Spawn Connections to the AGI server
 				go func() {
 					defer wg2.Done()
 					conn, err := net.Dial("tcp", host+":"+strconv.Itoa(PORT))
 					if err != nil {
 						atomic.AddInt32(&fail, 1)
-						last_error = err
+						if DEBUG {
+							log_chan <- fmt.Sprintf("# %s\n", err)
+						}
 						return
 					}
 					atomic.AddInt32(&active, 1)
 					scanner := bufio.NewScanner(conn)
 					init_data := agi_init(host)
 					start := time.Now()
+					//Send AGI initialisation data
 					for key, value := range init_data {
-						conn.Write([]byte(key+": "+value+"\n"))
+						conn.Write([]byte(key + ": " + value + "\n"))
 					}
 					conn.Write([]byte("\n"))
+					//Reply with '200' to all messages from the AGI server until it hangs up
 					for scanner.Scan() {
 						time.Sleep(reply_delay)
 						conn.Write([]byte("200 result=0\n"))
 					}
 					conn.Close()
 					elapsed := time.Since(start)
+					time_chan <- elapsed.Nanoseconds()
 					atomic.AddInt32(&active, -1)
 					atomic.AddInt32(&count, 1)
 					if DEBUG {
-						writer.WriteString(strconv.Itoa(int(count)) + "," + strconv.Itoa(int(active)) + "," +
-							strconv.FormatInt(elapsed.Nanoseconds(), 10) + "\n")
+						log_chan <- fmt.Sprintf("%d,%d,%d\n", atomic.LoadInt32(&count), atomic.LoadInt32(&active), elapsed.Nanoseconds())
 					}
 				}()
 
@@ -122,26 +130,56 @@ func agi_session(host string, wg *sync.WaitGroup) {
 			wg2.Wait()
 		}(ticker)
 	}
-	go func() {
-		defer wg1.Done()
-		for {
-			fmt.Print("\033[2J\033[H")
-			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:  ",
-				run_delay, "\nSessions per run:", SESS_RUN, "\nReply delay:", reply_delay)
-			fmt.Println("\nFastAGI Sessions\nActive:", active, "\nCompleted:", count, "\nFailed:", fail)
-			if last_error != nil {
-				fmt.Println("Last error:", last_error)
+	wg3 := new(sync.WaitGroup)
+	//Write to log file
+	if DEBUG {
+		wg3.Add(1)
+		go func() {
+			defer wg3.Done()
+			for log_msg := range log_chan {
+				writer.WriteString(log_msg)
 			}
+		}()
+	}
+	//Calculate Average session duration for the last 1000 sessions
+	wg3.Add(1)
+	go func() {
+		defer wg3.Done()
+		var sessions int64 = 0
+		for dur := range time_chan {
+			sessions++
+			avg_dur = (avg_dur*(sessions-1) + dur) / sessions
+			if sessions >= 1000 {
+				sessions = 0
+			}
+		}
+	}()
+	//Display pretty output to the user
+	wg3.Add(1)
+	go func() {
+		defer wg3.Done()
+		for {
+			fmt.Print("\033[2J\033[H") //Clear screen
+			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:",
+				run_delay, "\nSessions per run:", SESS_RUN, "\nReply delay:", reply_delay,
+				"\n\nFastAGI Sessions\nActive:", atomic.LoadInt32(&active), "\nCompleted:",
+				atomic.LoadInt32(&count), "\nDuration:", atomic.LoadInt64(&avg_dur),
+				"ns (last 1000 sessions average)\nFailed:", atomic.LoadInt32(&fail))
 			if shutdown {
 				fmt.Println("Stopping...")
-				if active == 0 {
+				if atomic.LoadInt32(&active) == 0 {
 					break
 				}
 			}
 			time.Sleep(500 * time.Millisecond)
 		}
 	}()
+	//Wait all FastAGI sessions to end
 	wg1.Wait()
+	close(log_chan)
+	close(time_chan)
+	//Wait writing to log file to finish
+	wg3.Wait()
 }
 
 func agi_init(host string) map[string]string {
