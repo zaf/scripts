@@ -94,6 +94,8 @@ func agi_bench(host string, wg *sync.WaitGroup) {
 				//Spawn Connections to the AGI server
 				go func() {
 					defer wg2.Done()
+					init_data := agi_init(host)
+					start := time.Now()
 					conn, err := net.Dial("tcp", host+":"+strconv.Itoa(PORT))
 					if err != nil {
 						atomic.AddInt32(&fail, 1)
@@ -104,8 +106,6 @@ func agi_bench(host string, wg *sync.WaitGroup) {
 					}
 					atomic.AddInt32(&active, 1)
 					scanner := bufio.NewScanner(conn)
-					init_data := agi_init(host)
-					start := time.Now()
 					//Send AGI initialisation data
 					for key, value := range init_data {
 						conn.Write([]byte(key + ": " + value + "\n"))
