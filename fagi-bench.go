@@ -28,7 +28,7 @@ const (
 	PORT     = 4573        //FastAGI server port
 	RUNS_SEC = 10          //Number of runs per second
 	SESS_RUN = 10          //Sessions per run
-	SESS_DUR = 10          //Session duration in sec
+	DELAY    = 0.1         //Delay in AGI responses to the server
 	AGI_ARG1 = "echo-test" //Argument to pass to the FastAGI server
 )
 
@@ -75,12 +75,12 @@ func agi_session(host string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	var last_error error
 	active, count, fail := 0, 0, 0
-	delay := time.Duration(1000000000/RUNS_SEC) * time.Nanosecond
-	duration := time.Duration(1000000000*SESS_DUR) * time.Nanosecond
+	run_delay := time.Duration(1000000000/RUNS_SEC) * time.Nanosecond
+	reply_delay := time.Duration(1000000000*DELAY) * time.Nanosecond
 	wg1 := new(sync.WaitGroup)
 	wg1.Add(SESS_RUN + 1)
 	for i := 0; i < SESS_RUN; i++ {
-		ticker := time.Tick(delay)
+		ticker := time.Tick(run_delay)
 		go func(ticker <-chan time.Time) {
 			defer wg1.Done()
 			wg2 := new(sync.WaitGroup)
@@ -96,18 +96,17 @@ func agi_session(host string, wg *sync.WaitGroup) {
 						return
 					}
 					active++
+					scanner := bufio.NewScanner(conn)
 					init_data := agi_init(host)
 					start := time.Now()
 					for key, value := range init_data {
-						fmt.Fprintln(conn, key+": "+value)
+						conn.Write([]byte(key+": "+value+"\n"))
 					}
-					fmt.Fprintf(conn, "\n")
-					bufio.NewReader(conn).ReadString('\n')
-					time.Sleep(duration / 2)
-					conn.Write([]byte("200 result=0\n"))
-					bufio.NewReader(conn).ReadString('\n')
-					time.Sleep(duration / 2)
-					conn.Write([]byte("HANGUP\n"))
+					conn.Write([]byte("\n"))
+					for scanner.Scan() {
+						time.Sleep(reply_delay)
+						conn.Write([]byte("200 result=0\n"))
+					}
 					conn.Close()
 					elapsed := time.Since(start)
 					active--
@@ -127,7 +126,7 @@ func agi_session(host string, wg *sync.WaitGroup) {
 		for {
 			fmt.Print("\033[2J\033[H")
 			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:  ",
-				delay, "\nSessions per run:", SESS_RUN, "\nSession duration:", duration)
+				run_delay, "\nSessions per run:", SESS_RUN, "\nReply delay:", reply_delay)
 			fmt.Println("\nFastAGI Sessions\nActive:", active, "\nCompleted:", count, "\nFailed:", fail)
 			if last_error != nil {
 				fmt.Println("Last error:", last_error)
