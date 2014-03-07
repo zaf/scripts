@@ -24,7 +24,7 @@ const (
 	DEBUG     = true      //Print debug information on stderr
 	PORT      = 4573      //Listening port
 	HOST      = "0.0.0.0" //Listening address
-	LISTENERS = 5         //Number of Listeners
+	LISTENERS = 5         //Pool size of Listeners
 )
 
 func main() {
@@ -36,7 +36,7 @@ func main() {
 		log.Fatalln(err)
 	}
 	defer listener.Close()
-	wg := sync.WaitGroup{}
+	wg := new(sync.WaitGroup)
 	wg.Add(LISTENERS)
 	for i := 0; i < LISTENERS; i++ {
 		go func() {

@@ -59,9 +59,9 @@ func main() {
 		writer.WriteString("#Starting benchmark at: " + time.Now().String() + "\n#qcompleted,active,duration\n")
 	}
 	rand.Seed(time.Now().UTC().UnixNano())
-	wg := sync.WaitGroup{}
+	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	go agi_session(os.Args[1], &wg)
+	go agi_session(os.Args[1], wg)
 	bufio.NewReader(os.Stdin).ReadString('\n')
 	shutdown = true
 	wg.Wait()
@@ -77,13 +77,13 @@ func agi_session(host string, wg *sync.WaitGroup) {
 	active, count, fail := 0, 0, 0
 	delay := time.Duration(1000000000/RUNS_SEC) * time.Nanosecond
 	duration := time.Duration(1000000000*SESS_DUR) * time.Nanosecond
-	wg1 := sync.WaitGroup{}
+	wg1 := new(sync.WaitGroup)
 	wg1.Add(SESS_RUN + 1)
 	for i := 0; i < SESS_RUN; i++ {
 		ticker := time.Tick(delay)
 		go func(ticker <-chan time.Time) {
 			defer wg1.Done()
-			wg2 := sync.WaitGroup{}
+			wg2 := new(sync.WaitGroup)
 			for !shutdown {
 				<-ticker
 				wg2.Add(1)
