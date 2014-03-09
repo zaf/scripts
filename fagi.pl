@@ -16,4 +16,12 @@ use MyAGI;
 
 print "Starting FastAGI server...\n";
 
-MyAGI->run( host => '0.0.0.0', port => '4573', log_level => '0' );
+MyAGI->run(
+	host => '0.0.0.0',
+	port => '4573',
+	log_level => '0',
+	min_servers => '10',
+	min_spare_servers => '10',
+	max_spare_servers => '50',
+	max_servers => '1000',
+);

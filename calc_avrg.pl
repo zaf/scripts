@@ -23,11 +23,17 @@ foreach my $file (@file_list) {
 	my $runs = 0;
 	my $active  = 0;
 	my $duration = 0;
+	my ($min_a, $max_a);
+	my ($min_d, $max_d);
 	open(my $csvfile, "<", "$file");
 	while (<$csvfile>) {
 		if (/^\d+,(\d+),(\d+)$/) {
 			$active+=$1;
+			$min_a = $1 if (!$min_a or $1 < $min_a);
+			$max_a = $1 if (!$max_a or $1 > $max_a);
 			$duration+=$2;
+			$min_d = $2 if (!$min_d or $2 < $min_d);
+			$max_d = $2 if (!$max_d or $2 > $max_d);
 			$runs++;
 		}
 	}
@@ -37,8 +43,8 @@ foreach my $file (@file_list) {
 		next;
 	} else {
 		print "Average values after $runs runs:\n";
-		print "Active Sessions:  " . int($active/$runs) . "\n";
-		print "Session Duration: " . $duration/$runs . " ns\n";
+		print "Active Sessions (avr/min/max):  " . int($active/$runs) . " / ", $min_a . " / ", $max_a . "\n";
+		print "Session Duration (avr/min/max): " . int($duration/$runs) . " / ", $min_d . " / ", $max_d. "\n";
 	}
 	close $csvfile;
 }
