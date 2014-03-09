@@ -171,7 +171,7 @@ func agi_bench(host string, wg *sync.WaitGroup) {
 					break
 				}
 			}
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(1 * time.Second)
 		}
 	}()
 	//Wait all FastAGI sessions to end
@@ -186,20 +186,20 @@ func agi_init(host string) map[string]string {
 	//Generate AGI initialisation data
 	agi_data := map[string]string{
 		"agi_network":        "yes",
-		"agi_network_script": "bench",
-		"agi_request":        "agi://" + host,
-		"agi_channel":        "ALSA/default",
+		"agi_network_script": "echo_test?param=foo",
+		"agi_request":        "agi://" + host + "/echo_test?param=foo",
+		"agi_channel":        "SIP/1234-00000000",
 		"agi_language":       "en",
-		"agi_type":           "Console",
+		"agi_type":           "SIP",
 		"agi_uniqueid":       strconv.Itoa(100000000 + rand.Intn(899999999)),
 		"agi_version":        "0.1",
-		"agi_callerid":       "unknown",
-		"agi_calleridname":   "unknown",
+		"agi_callerid":       "1234",
+		"agi_calleridname":   "1234",
 		"agi_callingpres":    "67",
 		"agi_callingani2":    "0",
 		"agi_callington":     "0",
 		"agi_callingtns":     "0",
-		"agi_dnid":           "unknown",
+		"agi_dnid":           "100",
 		"agi_rdnis":          "unknown",
 		"agi_context":        "default",
 		"agi_extension":      "100",
