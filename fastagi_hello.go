@@ -149,12 +149,11 @@ func agi_conn_handle(client net.Conn) {
 						log.Printf("Channel closed.")
 					}
 					return
-				} else {
-					_, err := client.Write([]byte(agi_msg))
-					if err != nil {
-						log.Println(err)
-						return
-					}
+				}
+				_, err := client.Write([]byte(agi_msg))
+				if err != nil {
+					log.Println(err)
+					return
 				}
 			}
 		}

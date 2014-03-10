@@ -34,7 +34,7 @@ const (
 )
 
 var (
-	shutdown bool = false
+	shutdown = false
 	file     *os.File
 	writer   *bufio.Writer
 )
@@ -74,8 +74,8 @@ func main() {
 
 func agi_bench(host string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	var active, count, fail int32 = 0, 0, 0
-	var avg_dur int64 = 0
+	var active, count, fail int32
+	var avg_dur int64
 	log_chan := make(chan string, SESS_RUN*2)
 	time_chan := make(chan int64, SESS_RUN*2)
 	run_delay := time.Duration(1000000000/RUNS_SEC) * time.Nanosecond
@@ -145,7 +145,7 @@ func agi_bench(host string, wg *sync.WaitGroup) {
 	wg3.Add(1)
 	go func() {
 		defer wg3.Done()
-		var sessions int64 = 0
+		var sessions int64
 		for dur := range time_chan {
 			sessions++
 			avg_dur = (avg_dur*(sessions-1) + dur) / sessions
