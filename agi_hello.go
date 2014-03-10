@@ -19,78 +19,78 @@ import (
 )
 
 var (
-	debug      = true
-	agi_reader = bufio.NewReaderSize(os.Stdin, 0)
+	debug     = true
+	agiReader = bufio.NewReader(os.Stdin)
 )
 
 func main() {
 	var res []string
-	agi_data := make(map[string]string)
+	agiData := make(map[string]string)
 
-	agi_parse_init(agi_data)
-	if agi_data["arg_1"] == "" {
+	agiParseInit(agiData)
+	if agiData["arg_1"] == "" {
 		log.Fatalln("No arguments passed, exiting")
 	}
-	my_file := agi_data["arg_1"]
+	file := agiData["arg_1"]
 
 	//Check channel status
 	fmt.Fprintln(os.Stdout, "CHANNEL STATUS")
-	res = agi_parse_response()
+	res = agiParseResponse()
 	if res[0] != "200" {
 		log.Fatalln("Failed to get Channel status")
 	}
 	//Answer channel if not answered already
 	if res[1] != "6" {
 		fmt.Fprintln(os.Stdout, "ANSWER")
-		res = agi_parse_response()
+		res = agiParseResponse()
 		if res[0] != "200" || res[1] == "-1" {
 			log.Fatalln("Failed to answer channel")
 		}
 	}
 	//Display on the console the file we are about to playback
-	fmt.Fprintln(os.Stdout, "VERBOSE \"Playingback file: "+my_file+"\" 1")
+	fmt.Fprintln(os.Stdout, "VERBOSE \"Playingback file: "+file+"\" 1")
 	//os.Stdout.Sync()
-	res = agi_parse_response()
+	res = agiParseResponse()
 	if res[0] != "200" {
 		log.Fatalln("VERBOSE failed")
 	}
 	//Playback file
-	fmt.Fprintln(os.Stdout, "STREAM FILE", my_file, "\"\"")
+	fmt.Fprintln(os.Stdout, "STREAM FILE", file, "\"\"")
 	//os.Stdout.Sync()
-	res = agi_parse_response()
+	res = agiParseResponse()
 	if res[0] != "200" || res[1] == "-1" {
-		log.Fatalln("Failed to playback file", my_file)
+		log.Fatalln("Failed to playback file", file)
 	}
 	os.Exit(0)
 }
 
-func agi_parse_init(agi_arg map[string]string) {
+func agiParseInit(agiArg map[string]string) {
 	//Read and store AGI input
 	for {
-		line, err := agi_reader.ReadString('\n')
+		line, err := agiReader.ReadString('\n')
 		if err != nil || line == "\n" {
 			break
 		}
-		input_str := strings.SplitN(line, ": ", 2)
-		if len(input_str) == 2 {
-			input_str[0] = strings.TrimPrefix(input_str[0], "agi_")
-			input_str[1] = strings.TrimRight(input_str[1], "\n")
-			agi_arg[input_str[0]] = input_str[1]
+		inputStr := strings.SplitN(line, ": ", 2)
+		if len(inputStr) == 2 {
+			inputStr[0] = strings.TrimPrefix(inputStr[0], "agi_")
+			inputStr[1] = strings.TrimRight(inputStr[1], "\n")
+			agiArg[inputStr[0]] = inputStr[1]
 		}
 	}
 
 	if debug {
 		log.Println("Finished reading AGI vars:")
-		for key, value := range agi_arg {
+		for key, value := range agiArg {
 			log.Println(key + "\t\t" + value)
 		}
 	}
 }
 
-func agi_parse_response() []string {
+func agiParseResponse() []string {
 	// Read back AGI repsonse
 	reply := make([]string, 3)
-	line, _ := agi_reader.ReadString('\n')
+	line, _ := agiReader.ReadString('\n')
 	line = strings.TrimRight(line, "\n")
 	reply = strings.SplitN(line, " ", 3)
 
@@ -109,7 +109,7 @@ func agi_parse_response() []string {
 	} else if reply[0] == "520-Invalid" {
 		reply[0] = "520"
 		reply[1] = "Invalid command syntax."
-		reply[2], _ = agi_reader.ReadString('\n')
+		reply[2], _ = agiReader.ReadString('\n')
 		reply[2] = "Proper usage follows: " + strings.TrimRight(reply[2], "\n")
 	} else {
 		log.Println("AGI unexpected response:", reply)

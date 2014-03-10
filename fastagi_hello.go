@@ -12,33 +12,34 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"log"
 	"net"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 )
 
-const (
-	DEBUG     = true      //Print debug information on stderr
-	PORT      = 4573      //Listening port
-	HOST      = "0.0.0.0" //Listening address
-	LISTENERS = 5         //Pool size of Listeners
+var (
+	debug     = flag.Bool("debug", false, "Print debug information on stderr")
+	host      = flag.String("host", "127.0.0.1", "Listening address")
+	port      = flag.String("port", "4573", "Listening server port")
+	listeners = flag.Int("runs", 5, "Pool size of Listeners")
 )
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	flag.Parse()
 	log.Println("Starting FastAGI server...")
 
-	listener, err := net.Listen("tcp", HOST+":"+strconv.Itoa(PORT))
+	listener, err := net.Listen("tcp", *host+":"+*port)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer listener.Close()
 	wg := new(sync.WaitGroup)
-	wg.Add(LISTENERS)
-	for i := 0; i < LISTENERS; i++ {
+	wg.Add(*listeners)
+	for i := 0; i < *listeners; i++ {
 		go func() {
 			defer wg.Done()
 			for {
@@ -47,45 +48,45 @@ func main() {
 					log.Println(err)
 					continue
 				}
-				if DEBUG {
+				if *debug {
 					log.Printf("Connected: %v <-> %v\n", conn.LocalAddr(), conn.RemoteAddr())
 				}
-				go agi_conn_handle(conn)
+				go agiConnHandle(conn)
 			}
 		}()
 	}
 	wg.Wait()
 }
 
-func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[string]string) {
+func agiLogic(rcvChan <-chan string, sndChan chan<- string, agiArg map[string]string) {
 	//Do AGI stuff
 	reply := make([]string, 3)
 	defer func() {
 		reply = nil
-		close(snd_chan)
+		close(sndChan)
 	}()
 
-	if agi_arg["arg_1"] == "" {
-		if DEBUG {
+	if agiArg["arg_1"] == "" {
+		if *debug {
 			log.Println("No arguments passed, exiting")
 		}
 		goto HANGUP
 	}
 
-	snd_chan <- "VERBOSE \"Staring an echo test.\" 3\n"
-	reply = agi_response(rcv_chan)
+	sndChan <- "VERBOSE \"Staring an echo test.\" 3\n"
+	reply = agiResponse(rcvChan)
 	if reply[0] != "200" {
 		goto HANGUP
 	}
 
 	//Check channel status and answer if not answered already
-	snd_chan <- "CHANNEL STATUS\n"
-	reply = agi_response(rcv_chan)
+	sndChan <- "CHANNEL STATUS\n"
+	reply = agiResponse(rcvChan)
 	if reply[0] != "200" {
 		goto HANGUP
 	} else if reply[1] != "6" {
-		snd_chan <- "ANSWER\n"
-		reply = agi_response(rcv_chan)
+		sndChan <- "ANSWER\n"
+		reply = agiResponse(rcvChan)
 		if reply[0] != "200" {
 			goto HANGUP
 		} else if reply[1] == "-1" {
@@ -94,15 +95,15 @@ func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[strin
 		}
 	}
 	//Playback a file and run the echo() app
-	snd_chan <- "STREAM FILE " + agi_arg["arg_1"] + "  \"\"\n"
-	reply = agi_response(rcv_chan)
+	sndChan <- "STREAM FILE " + agiArg["arg_1"] + "  \"\"\n"
+	reply = agiResponse(rcvChan)
 	if reply[0] != "200" {
 		goto HANGUP
 	} else if reply[1] == "-1" {
-		log.Println("Failed to playback file", agi_arg["arg_1"])
+		log.Println("Failed to playback file", agiArg["arg_1"])
 	}
-	snd_chan <- "EXEC Echo\n"
-	reply = agi_response(rcv_chan)
+	sndChan <- "EXEC Echo\n"
+	reply = agiResponse(rcvChan)
 	if reply[0] != "200" {
 		goto HANGUP
 	} else if reply[1] == "-2" {
@@ -110,47 +111,47 @@ func agi_logic(rcv_chan <-chan string, snd_chan chan<- string, agi_arg map[strin
 	}
 
 HANGUP:
-	snd_chan <- "HANGUP\n"
-	reply = agi_response(rcv_chan)
+	sndChan <- "HANGUP\n"
+	reply = agiResponse(rcvChan)
 	return
 }
 
-func agi_conn_handle(client net.Conn) {
-	rcv_chan := make(chan string)
-	snd_chan := make(chan string)
-	agi_data := make(map[string]string)
+func agiConnHandle(client net.Conn) {
+	rcvChan := make(chan string)
+	sndChan := make(chan string)
+	agiData := make(map[string]string)
 	//Receive network data and send to channel
 	go func() {
 		scanner := bufio.NewScanner(client)
 		for scanner.Scan() {
 			line := scanner.Text()
 			if line == "HANGUP" {
-				if DEBUG {
+				if *debug {
 					log.Println("Client hung up.")
 				}
 				break
 			}
-			rcv_chan <- line
+			rcvChan <- line
 		}
-		if DEBUG {
+		if *debug {
 			log.Printf("Connection from %v closed.", client.RemoteAddr())
 		}
 		client.Close()
-		close(rcv_chan)
+		close(rcvChan)
 		return
 	}()
 	//Read channel data and send to network
 	go func() {
 		for {
 			select {
-			case agi_msg, ok := <-snd_chan:
+			case agiMsg, ok := <-sndChan:
 				if !ok {
-					if DEBUG {
+					if *debug {
 						log.Printf("Channel closed.")
 					}
 					return
 				}
-				_, err := client.Write([]byte(agi_msg))
+				_, err := client.Write([]byte(agiMsg))
 				if err != nil {
 					log.Println(err)
 					return
@@ -159,43 +160,43 @@ func agi_conn_handle(client net.Conn) {
 		}
 	}()
 
-	agi_init(rcv_chan, agi_data)
-	agi_logic(rcv_chan, snd_chan, agi_data)
+	agiInit(rcvChan, agiData)
+	agiLogic(rcvChan, sndChan, agiData)
 
 	client.Close()
-	agi_data = nil
+	agiData = nil
 	return
 }
 
-func agi_init(rcv_chan <-chan string, agi_input map[string]string) {
+func agiInit(rcvChan <-chan string, agiInput map[string]string) {
 	//Read and store AGI input
-	for agi_str := range rcv_chan {
-		if agi_str == "" {
+	for agiStr := range rcvChan {
+		if agiStr == "" {
 			break
 		}
-		input_str := strings.SplitN(agi_str, ": ", 2)
-		if len(input_str) == 2 {
-			input_str[0] = strings.TrimPrefix(input_str[0], "agi_")
-			input_str[1] = strings.TrimRight(input_str[1], "\n")
-			agi_input[input_str[0]] = input_str[1]
+		inputStr := strings.SplitN(agiStr, ": ", 2)
+		if len(inputStr) == 2 {
+			inputStr[0] = strings.TrimPrefix(inputStr[0], "agi_")
+			inputStr[1] = strings.TrimRight(inputStr[1], "\n")
+			agiInput[inputStr[0]] = inputStr[1]
 		} else {
-			log.Println("No AGI Compatible Input:", input_str)
+			log.Println("No AGI Compatible Input:", inputStr)
 			break
 		}
 	}
-	if DEBUG {
+	if *debug {
 		log.Println("Finished reading AGI vars:")
-		for key, value := range agi_input {
+		for key, value := range agiInput {
 			log.Println(key + "\t\t" + value)
 		}
 	}
 	return
 }
 
-func agi_response(rcv_chan <-chan string) []string {
+func agiResponse(rcvChan <-chan string) []string {
 	//Parse and return AGI responce
 	reply := make([]string, 3)
-	for msg := range rcv_chan {
+	for msg := range rcvChan {
 		msg = strings.TrimRight(msg, "\n\r")
 		if reply[0] == "520" {
 			break
@@ -222,13 +223,13 @@ func agi_response(rcv_chan <-chan string) []string {
 			reply[1] = "Invalid command syntax."
 			reply[2] = ""
 		} else {
-			if DEBUG {
+			if *debug {
 				log.Println("AGI unexpected response:", reply)
 			}
 			return []string{"ERR", "", ""}
 		}
 	}
-	if DEBUG {
+	if *debug {
 		log.Println("AGI command returned:", reply)
 	}
 	return reply
