@@ -15,7 +15,7 @@ use base 'Asterisk::FastAGI';
 
 my $debug = 1;
 
-sub echo_test {
+sub myagi {
 	my $self = shift;
 	my $agi_input = $self->input();
 	my $status;
@@ -25,14 +25,11 @@ sub echo_test {
 		warn "$_:\t\t$agi_input->{$_}\n" foreach (keys %$agi_input);
 	}
 
-	if ($agi_input->{'arg_1'} eq '') {
+	if ($self->param('file') eq '') {
 		warn "No arguments passed, exiting.\n" if ($debug);
 		goto HANGUP;
 	}
-	$status = $self->agi->verbose("Staring an echo test.",3);
-	if ($status != 0) {
-		goto HANGUP;
-	}
+
 	$status = $self->agi->channel_status('');
 	if ($status == -1) {
 		goto HANGUP;
@@ -43,15 +40,16 @@ sub echo_test {
 			goto HANGUP;
 		}
 	}
-	$status = $self->agi->stream_file($agi_input->{'arg_1'}, '', 0);
-	if ($status == -1) {
-		warn "Failed to playback file $agi_input->{'arg_1'}\n:";
+	$status = $self->agi->verbose("Paying back: " . $self->param('file'), 0);
+	if ($status != 0) {
 		goto HANGUP;
 	}
-	$status = $self->agi->exec("echo");
-	if ($status != 0) {
-		warn "Failed to find application\n";
+	$status = $self->agi->stream_file($self->param('file'), '', 0);
+	if ($status == -1) {
+		warn "Failed to playback file " . $self->param('file') . "\n";
+		goto HANGUP;
 	}
+
 HANGUP:
 	$self->agi->hangup();
 }

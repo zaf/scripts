@@ -35,8 +35,8 @@ var (
 	runs     = flag.Int("runs", 10, "Number of runs per second")
 	sess     = flag.Int("sess", 10, "Sessions per run")
 	delay    = flag.Int("delay", 100, "Delay in AGI responses to the server (milliseconds)")
-	req      = flag.String("req", "echo_test?par=foo", "AGI request")
-	arg      = flag.String("arg", "foo", "Argument to pass to the FastAGI server")
+	req      = flag.String("req", "myagi?file=echo-test", "AGI request")
+	arg      = flag.String("arg", "", "Argument to pass to the FastAGI server")
 )
 
 func main() {
@@ -185,29 +185,35 @@ func agiBench(wg *sync.WaitGroup) {
 func agiInit() map[string]string {
 	//Generate AGI initialisation data
 	agiData := map[string]string{
-		"agi_network":        "yes",
-		"agi_network_script": *req,
-		"agi_request":        "agi://" + *host + "/" + *req,
-		"agi_channel":        "SIP/1234-00000000",
-		"agi_language":       "en",
-		"agi_type":           "SIP",
-		"agi_uniqueid":       strconv.Itoa(100000000 + rand.Intn(899999999)),
-		"agi_version":        "0.1",
-		"agi_callerid":       "1234",
-		"agi_calleridname":   "1234",
-		"agi_callingpres":    "67",
-		"agi_callingani2":    "0",
-		"agi_callington":     "0",
-		"agi_callingtns":     "0",
-		"agi_dnid":           "100",
-		"agi_rdnis":          "unknown",
-		"agi_context":        "default",
-		"agi_extension":      "100",
-		"agi_priority":       "1",
-		"agi_enhanced":       "0.0",
-		"agi_accountcode":    "",
-		"agi_threadid":       strconv.Itoa(100000000 + rand.Intn(899999999)),
-		"agi_arg_1":          *arg,
+		"agi_network":      "yes",
+		"agi_channel":      "SIP/1234-00000000",
+		"agi_language":     "en",
+		"agi_type":         "SIP",
+		"agi_uniqueid":     strconv.Itoa(100000000 + rand.Intn(899999999)),
+		"agi_version":      "0.1",
+		"agi_callerid":     "1234",
+		"agi_calleridname": "1234",
+		"agi_callingpres":  "67",
+		"agi_callingani2":  "0",
+		"agi_callington":   "0",
+		"agi_callingtns":   "0",
+		"agi_dnid":         "100",
+		"agi_rdnis":        "unknown",
+		"agi_context":      "default",
+		"agi_extension":    "100",
+		"agi_priority":     "1",
+		"agi_enhanced":     "0.0",
+		"agi_accountcode":  "",
+		"agi_threadid":     strconv.Itoa(100000000 + rand.Intn(899999999)),
+	}
+	if len(*req) > 0 {
+		agiData["agi_network_script"] = *req
+		agiData["agi_request"] = "agi://" + *host + "/" + *req
+	} else {
+		agiData["agi_request"] = "agi://" + *host
+	}
+	if len(*arg) > 0 {
+		agiData["agi_arg_1"] = *arg
 	}
 	return agiData
 }

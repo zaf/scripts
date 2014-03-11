@@ -15,6 +15,7 @@ import (
 	"flag"
 	"log"
 	"net"
+	"net/url"
 	"runtime"
 	"strings"
 	"sync"
@@ -61,24 +62,20 @@ func main() {
 func agiLogic(rcvChan <-chan string, sndChan chan<- string, agiArg map[string]string) {
 	//Do AGI stuff
 	reply := make([]string, 3)
+	var file string
 	defer func() {
 		reply = nil
 		close(sndChan)
 	}()
 
-	if agiArg["arg_1"] == "" {
+	_, query := parseAgiReq(agiArg["request"])
+	if query["file"] == nil {
 		if *debug {
 			log.Println("No arguments passed, exiting")
 		}
 		goto HANGUP
 	}
-
-	sndChan <- "VERBOSE \"Staring an echo test.\" 3\n"
-	reply = agiResponse(rcvChan)
-	if reply[0] != "200" {
-		goto HANGUP
-	}
-
+	file = query["file"][0]
 	//Check channel status and answer if not answered already
 	sndChan <- "CHANNEL STATUS\n"
 	reply = agiResponse(rcvChan)
@@ -94,20 +91,18 @@ func agiLogic(rcvChan <-chan string, sndChan chan<- string, agiArg map[string]st
 			goto HANGUP
 		}
 	}
-	//Playback a file and run the echo() app
-	sndChan <- "STREAM FILE " + agiArg["arg_1"] + "  \"\"\n"
+	//Display message on console and playback a file
+	sndChan <- "VERBOSE \"Paying back: " + file + "\" 0\n"
+	reply = agiResponse(rcvChan)
+	if reply[0] != "200" {
+		goto HANGUP
+	}
+	sndChan <- "STREAM FILE " + file + "  \"\"\n"
 	reply = agiResponse(rcvChan)
 	if reply[0] != "200" {
 		goto HANGUP
 	} else if reply[1] == "-1" {
-		log.Println("Failed to playback file", agiArg["arg_1"])
-	}
-	sndChan <- "EXEC Echo\n"
-	reply = agiResponse(rcvChan)
-	if reply[0] != "200" {
-		goto HANGUP
-	} else if reply[1] == "-2" {
-		log.Println("Failed to find application")
+		log.Println("Failed to playback file", file)
 	}
 
 HANGUP:
@@ -233,4 +228,11 @@ func agiResponse(rcvChan <-chan string) []string {
 		log.Println("AGI command returned:", reply)
 	}
 	return reply
+}
+
+func parseAgiReq(request string) (string, url.Values) {
+	//Parse AGI reguest return path and query params
+	req, _ := url.Parse(request)
+	query, _ := url.ParseQuery(req.RawQuery)
+	return req.Path, query
 }
