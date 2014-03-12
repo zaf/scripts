@@ -13,7 +13,7 @@ use warnings;
 
 use base 'Asterisk::FastAGI';
 
-my $debug = 1;
+my $debug = 0;
 
 sub myagi {
 	my $self      = shift;

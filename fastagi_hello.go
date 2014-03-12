@@ -16,46 +16,50 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"os"
+	"os/signal"
 	"runtime"
 	"strings"
 	"sync"
 )
 
 var (
-	debug     = flag.Bool("debug", false, "Print debug information on stderr")
-	host      = flag.String("host", "127.0.0.1", "Listening address")
-	port      = flag.String("port", "4573", "Listening server port")
-	listeners = flag.Int("runs", 5, "Pool size of Listeners")
+	debug  = flag.Bool("debug", false, "Print debug information on stderr")
+	listen = flag.String("listen", "127.0.0.1", "Listening address")
+	port   = flag.String("port", "4573", "Listening server port")
 )
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
-	log.Println("Starting FastAGI server...")
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	shutdown := false
 
-	listener, err := net.Listen("tcp", *host+":"+*port)
+	log.Printf("Starting FastAGI server on %v:%v\n", *listen, *port)
+	listener, err := net.Listen("tcp", *listen+":"+*port)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer listener.Close()
 	wg := new(sync.WaitGroup)
-	wg.Add(*listeners)
-	for i := 0; i < *listeners; i++ {
-		go func() {
-			defer wg.Done()
-			for {
-				conn, err := listener.Accept()
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				if *debug {
-					log.Printf("Connected: %v <-> %v\n", conn.LocalAddr(), conn.RemoteAddr())
-				}
-				go agiConnHandle(conn)
+	go func() {
+		for !shutdown {
+			conn, err := listener.Accept()
+			if err != nil {
+				log.Println(err)
+				continue
 			}
-		}()
-	}
+			if *debug {
+				log.Printf("Connected: %v <-> %v\n", conn.LocalAddr(), conn.RemoteAddr())
+			}
+			wg.Add(1)
+			go agiConnHandle(conn, wg)
+		}
+	}()
+	signal := <-c
+	log.Printf("Received %v, Waiting for remaining sessions to end and exit.\n", signal)
+	shutdown = true
 	wg.Wait()
 }
 
@@ -78,12 +82,12 @@ func agiLogic(rcvChan <-chan string, sndChan chan<- string, agiArg map[string]st
 	file = query["file"][0]
 	//Check channel status and answer if not answered already
 	sndChan <- "CHANNEL STATUS\n"
-	reply = agiResponse(rcvChan)
+	reply = agiResponse(rcvChan, reply)
 	if reply[0] != "200" {
 		goto HANGUP
 	} else if reply[1] != "6" {
 		sndChan <- "ANSWER\n"
-		reply = agiResponse(rcvChan)
+		reply = agiResponse(rcvChan, reply)
 		if reply[0] != "200" {
 			goto HANGUP
 		} else if reply[1] == "-1" {
@@ -93,12 +97,12 @@ func agiLogic(rcvChan <-chan string, sndChan chan<- string, agiArg map[string]st
 	}
 	//Display message on console and playback a file
 	sndChan <- "VERBOSE \"Paying back: " + file + "\" 0\n"
-	reply = agiResponse(rcvChan)
+	reply = agiResponse(rcvChan, reply)
 	if reply[0] != "200" {
 		goto HANGUP
 	}
 	sndChan <- "STREAM FILE " + file + "  \"\"\n"
-	reply = agiResponse(rcvChan)
+	reply = agiResponse(rcvChan, reply)
 	if reply[0] != "200" {
 		goto HANGUP
 	} else if reply[1] == "-1" {
@@ -106,12 +110,16 @@ func agiLogic(rcvChan <-chan string, sndChan chan<- string, agiArg map[string]st
 	}
 
 HANGUP:
+	if *debug {
+		log.Println("Hanging up.")
+	}
 	sndChan <- "HANGUP\n"
-	reply = agiResponse(rcvChan)
+	reply = agiResponse(rcvChan, reply)
 	return
 }
 
-func agiConnHandle(client net.Conn) {
+func agiConnHandle(client net.Conn, wg *sync.WaitGroup) {
+	defer wg.Done()
 	rcvChan := make(chan string)
 	sndChan := make(chan string)
 	agiData := make(map[string]string)
@@ -188,9 +196,9 @@ func agiInit(rcvChan <-chan string, agiInput map[string]string) {
 	return
 }
 
-func agiResponse(rcvChan <-chan string) []string {
+func agiResponse(rcvChan <-chan string, reply []string) []string {
 	//Parse and return AGI responce
-	reply := make([]string, 3)
+	reply = []string{"", "", ""}
 	for msg := range rcvChan {
 		msg = strings.TrimRight(msg, "\n\r")
 		if reply[0] == "520" {
@@ -220,7 +228,8 @@ func agiResponse(rcvChan <-chan string) []string {
 			if *debug {
 				log.Println("AGI unexpected response:", reply)
 			}
-			return []string{"ERR", "", ""}
+			reply = []string{"ERR", "", ""}
+			break
 		}
 	}
 	if *debug {
