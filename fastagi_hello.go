@@ -209,7 +209,6 @@ func agiResponse(rcvChan <-chan string) []string {
 			reply[2] = ""
 			break
 		} else if reply[0] == "520" {
-			reply[0] = "520"
 			reply[1] = "Invalid command syntax."
 			reply[2] = ""
 			break

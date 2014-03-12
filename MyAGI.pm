@@ -16,7 +16,7 @@ use base 'Asterisk::FastAGI';
 my $debug = 1;
 
 sub myagi {
-	my $self = shift;
+	my $self      = shift;
 	my $agi_input = $self->input();
 	my $status;
 
@@ -46,12 +46,13 @@ sub myagi {
 	}
 	$status = $self->agi->stream_file($self->param('file'), '', 0);
 	if ($status == -1) {
-		warn "Failed to playback file " . $self->param('file') . "\n";
+		warn "Failed to playback file: " . $self->param('file') . "\n";
 		goto HANGUP;
 	}
 
 HANGUP:
 	$self->agi->hangup();
+	return;
 }
 
 1;

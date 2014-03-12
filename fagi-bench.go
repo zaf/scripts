@@ -32,8 +32,8 @@ var (
 	debug    = flag.Bool("debug", false, "Write detailed statistics output to csv file")
 	host     = flag.String("host", "127.0.0.1", "FAstAGI server host")
 	port     = flag.String("port", "4573", "FastAGI server port")
-	runs     = flag.Int("runs", 10, "Number of runs per second")
-	sess     = flag.Int("sess", 10, "Sessions per run")
+	runs     = flag.Float64("runs", 1, "Number of runs per second")
+	sess     = flag.Int("sess", 1, "Sessions per run")
 	delay    = flag.Int("delay", 100, "Delay in AGI responses to the server (milliseconds)")
 	req      = flag.String("req", "myagi?file=echo-test", "AGI request")
 	arg      = flag.String("arg", "", "Argument to pass to the FastAGI server")
@@ -54,10 +54,10 @@ func main() {
 			writer.Flush()
 			file.Close()
 		}()
-		writer.WriteString("#Started benchmark at: " + time.Now().String())
-		writer.WriteString("\n#Host: " + *host + "\n#Port: " + *port + "\n#Runs: " + strconv.Itoa(*runs))
-		writer.WriteString("\n#Sessions: " + strconv.Itoa(*sess) + "\n#Delay: " + strconv.Itoa(*delay) + "\n#Reguest: " + *req)
-		writer.WriteString("\n#completed,active,duration\n")
+		writer.WriteString("#Started benchmark at: " + time.Now().String() + "\n")
+		writer.WriteString(fmt.Sprintf("#Host: %v\n#Port: %v\n#Runs: %v\n", *host, *port, *runs))
+		writer.WriteString(fmt.Sprintf("#Sessions: %v\n#Delay: %v\n#Reguest: %v\n", *sess, *delay, *req))
+		writer.WriteString("#completed,active,duration\n")
 	}
 	rand.Seed(time.Now().UTC().UnixNano())
 	wg := new(sync.WaitGroup)
@@ -78,7 +78,7 @@ func agiBench(wg *sync.WaitGroup) {
 	var avrDur int64
 	logChan := make(chan string, *sess*2)
 	timeChan := make(chan int64, *sess*2)
-	runDelay := time.Duration(1000000000 / *runs) * time.Nanosecond
+	runDelay := time.Duration(1e9 / *runs) * time.Nanosecond
 	replyDelay := time.Duration(*delay) * time.Millisecond
 	wg1 := new(sync.WaitGroup)
 	wg1.Add(*sess)
@@ -189,7 +189,7 @@ func agiInit() map[string]string {
 		"agi_channel":      "SIP/1234-00000000",
 		"agi_language":     "en",
 		"agi_type":         "SIP",
-		"agi_uniqueid":     strconv.Itoa(100000000 + rand.Intn(899999999)),
+		"agi_uniqueid":     strconv.Itoa(1e8 + rand.Intn(9e8-1)),
 		"agi_version":      "0.1",
 		"agi_callerid":     "1234",
 		"agi_calleridname": "1234",
@@ -204,7 +204,7 @@ func agiInit() map[string]string {
 		"agi_priority":     "1",
 		"agi_enhanced":     "0.0",
 		"agi_accountcode":  "",
-		"agi_threadid":     strconv.Itoa(100000000 + rand.Intn(899999999)),
+		"agi_threadid":     strconv.Itoa(1e8 + rand.Intn(9e8-1)),
 	}
 	if len(*req) > 0 {
 		agiData["agi_network_script"] = *req

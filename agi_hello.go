@@ -103,7 +103,6 @@ func agiParseResponse() []string {
 		reply[1] = "Command Not Permitted on a dead channel."
 		reply[2] = ""
 	} else if reply[0] == "520" {
-		reply[0] = "520"
 		reply[1] = "Invalid command syntax."
 		reply[2] = ""
 	} else if reply[0] == "520-Invalid" {
