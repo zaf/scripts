@@ -41,9 +41,9 @@ sub myagi {
 		}
 	}
 	$status = $self->agi->verbose("Paying back: " . $self->param('file'), 0);
-	if ($status != 0) {
-		goto HANGUP;
-	}
+# 	if ($status != 1) {
+# 		goto HANGUP;
+# 	}
 	$status = $self->agi->stream_file($self->param('file'), '', 0);
 	if ($status == -1) {
 		warn "Failed to playback file: " . $self->param('file') . "\n";

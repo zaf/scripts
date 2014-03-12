@@ -94,7 +94,6 @@ func agiBench(wg *sync.WaitGroup) {
 				//Spawn Connections to the AGI server
 				go func() {
 					defer wg2.Done()
-					initData := agiInit()
 					start := time.Now()
 					conn, err := net.Dial("tcp", *host+":"+*port)
 					if err != nil {
@@ -107,10 +106,7 @@ func agiBench(wg *sync.WaitGroup) {
 					atomic.AddInt32(&active, 1)
 					scanner := bufio.NewScanner(conn)
 					//Send AGI initialisation data
-					for key, value := range initData {
-						conn.Write([]byte(key + ": " + value + "\n"))
-					}
-					conn.Write([]byte("\n"))
+					conn.Write(agiInit())
 					//Reply with '200' to all messages from the AGI server until it hangs up
 					for scanner.Scan() {
 						time.Sleep(replyDelay)
@@ -182,38 +178,39 @@ func agiBench(wg *sync.WaitGroup) {
 	wg3.Wait()
 }
 
-func agiInit() map[string]string {
+func agiInit() []byte {
 	//Generate AGI initialisation data
-	agiData := map[string]string{
-		"agi_network":      "yes",
-		"agi_channel":      "SIP/1234-00000000",
-		"agi_language":     "en",
-		"agi_type":         "SIP",
-		"agi_uniqueid":     strconv.Itoa(1e8 + rand.Intn(9e8-1)),
-		"agi_version":      "0.1",
-		"agi_callerid":     "1234",
-		"agi_calleridname": "1234",
-		"agi_callingpres":  "67",
-		"agi_callingani2":  "0",
-		"agi_callington":   "0",
-		"agi_callingtns":   "0",
-		"agi_dnid":         "100",
-		"agi_rdnis":        "unknown",
-		"agi_context":      "default",
-		"agi_extension":    "100",
-		"agi_priority":     "1",
-		"agi_enhanced":     "0.0",
-		"agi_accountcode":  "",
-		"agi_threadid":     strconv.Itoa(1e8 + rand.Intn(9e8-1)),
-	}
+	var agiData []byte
+	agiData = append(agiData, "agi_network: yes\n"...)
 	if len(*req) > 0 {
-		agiData["agi_network_script"] = *req
-		agiData["agi_request"] = "agi://" + *host + "/" + *req
+		agiData = append(agiData, "agi_network_script: "+*req+"\n"...)
+		agiData = append(agiData, "agi_request: agi://"+*host+"/"+*req+"\n"...)
 	} else {
-		agiData["agi_request"] = "agi://" + *host
+		agiData = append(agiData, "agi_request: agi://"+*host+"\n"...)
 	}
+	agiData = append(agiData, "agi_channel: SIP/1234-00000000\n"...)
+	agiData = append(agiData, "agi_language: en\n"...)
+	agiData = append(agiData, "agi_type: SIP\n"...)
+	agiData = append(agiData, "agi_uniqueid: "+strconv.Itoa(1e8+rand.Intn(9e8-1))+"\n"...)
+	agiData = append(agiData, "agi_version: 0.1\n"...)
+	agiData = append(agiData, "agi_callerid: 1234\n"...)
+	agiData = append(agiData, "agi_calleridname: 1234\n"...)
+	agiData = append(agiData, "agi_callingpres: 67\n"...)
+	agiData = append(agiData, "agi_callingani2: 0\n"...)
+	agiData = append(agiData, "agi_callington: 0\n"...)
+	agiData = append(agiData, "agi_callingtns: 0\n"...)
+	agiData = append(agiData, "agi_dnid: 100\n"...)
+	agiData = append(agiData, "agi_rdnis: unknown\n"...)
+	agiData = append(agiData, "agi_context: default\n"...)
+	agiData = append(agiData, "agi_extension: 100\n"...)
+	agiData = append(agiData, "agi_priority: 1\n"...)
+	agiData = append(agiData, "agi_enhanced: 0.0\n"...)
+	agiData = append(agiData, "agi_accountcode: \n"...)
+	agiData = append(agiData, "agi_threadid: "+strconv.Itoa(1e8+rand.Intn(9e8-1))+"\n"...)
 	if len(*arg) > 0 {
-		agiData["agi_arg_1"] = *arg
+		agiData = append(agiData, "agi_arg_1: "+*arg+"\n\n"...)
+	} else {
+		agiData = append(agiData, "\n"...)
 	}
 	return agiData
 }
