@@ -24,9 +24,10 @@ import (
 )
 
 var (
-	debug  = flag.Bool("debug", false, "Print debug information on stderr")
-	listen = flag.String("listen", "127.0.0.1", "Listening address")
-	port   = flag.String("port", "4573", "Listening server port")
+	debug     = flag.Bool("debug", false, "Print debug information on stderr")
+	listen    = flag.String("listen", "127.0.0.1", "Listening address")
+	port      = flag.String("port", "4573", "Listening server port")
+	listeners = flag.Int("runs", 4, "Pool size of Listeners")
 )
 
 func main() {
@@ -36,27 +37,29 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	shutdown := false
 
-	log.Printf("Starting FastAGI server on %v:%v\n", *listen, *port)
-	listener, err := net.Listen("tcp", *listen+":"+*port)
+	log.Printf("Starting FastAGI server on %v\n", net.JoinHostPort(*listen, *port))
+	listener, err := net.Listen("tcp", net.JoinHostPort(*listen, *port))
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer listener.Close()
 	wg := new(sync.WaitGroup)
-	go func() {
-		for !shutdown {
-			conn, err := listener.Accept()
-			if err != nil {
-				log.Println(err)
-				continue
+	for i := 0; i < *listeners; i++ {
+		go func() {
+			for !shutdown {
+				conn, err := listener.Accept()
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				if *debug {
+					log.Printf("Connected: %v <-> %v\n", conn.LocalAddr(), conn.RemoteAddr())
+				}
+				wg.Add(1)
+				go agiConnHandle(conn, wg)
 			}
-			if *debug {
-				log.Printf("Connected: %v <-> %v\n", conn.LocalAddr(), conn.RemoteAddr())
-			}
-			wg.Add(1)
-			go agiConnHandle(conn, wg)
-		}
-	}()
+		}()
+	}
 	signal := <-c
 	log.Printf("Received %v, Waiting for remaining sessions to end and exit.\n", signal)
 	shutdown = true

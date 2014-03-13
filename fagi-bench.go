@@ -95,7 +95,7 @@ func agiBench(wg *sync.WaitGroup) {
 				go func() {
 					defer wg2.Done()
 					start := time.Now()
-					conn, err := net.Dial("tcp", *host+":"+*port)
+					conn, err := net.Dial("tcp", net.JoinHostPort(*host, *port))
 					if err != nil {
 						atomic.AddInt32(&fail, 1)
 						if *debug {
@@ -118,7 +118,8 @@ func agiBench(wg *sync.WaitGroup) {
 					atomic.AddInt32(&active, -1)
 					atomic.AddInt32(&count, 1)
 					if *debug {
-						logChan <- fmt.Sprintf("%d,%d,%d\n", atomic.LoadInt32(&count), atomic.LoadInt32(&active), elapsed.Nanoseconds())
+						logChan <- fmt.Sprintf("%d,%d,%d\n", atomic.LoadInt32(&count),
+							atomic.LoadInt32(&active), elapsed.Nanoseconds())
 					}
 				}()
 
@@ -145,7 +146,7 @@ func agiBench(wg *sync.WaitGroup) {
 		for dur := range timeChan {
 			sessions++
 			avrDur = (avrDur*(sessions-1) + dur) / sessions
-			if sessions >= 1000 {
+			if sessions >= 10000 {
 				sessions = 0
 			}
 		}
@@ -156,11 +157,15 @@ func agiBench(wg *sync.WaitGroup) {
 		defer wg3.Done()
 		for {
 			fmt.Print("\033[2J\033[H") //Clear screen
-			fmt.Println("Running paraller AGI bench:\nPress Enter to stop.\n\nA new run each:",
-				runDelay, "\nSessions per run:", *sess, "\nReply delay:", replyDelay,
-				"\n\nFastAGI Sessions\nActive:", atomic.LoadInt32(&active), "\nCompleted:",
-				atomic.LoadInt32(&count), "\nDuration:", atomic.LoadInt64(&avrDur),
-				"ns (last 1000 sessions average)\nFailed:", atomic.LoadInt32(&fail))
+			fmt.Println("Running paraller AGI bench to:", net.JoinHostPort(*host, *port),
+				"\nPress Enter to stop.\n",
+				"\nA new run each:", runDelay,
+				"\nSessions per run:", *sess,
+				"\nReply delay:", replyDelay,
+				"\n\nFastAGI Sessions\nActive:", atomic.LoadInt32(&active),
+				"\nCompleted:", atomic.LoadInt32(&count),
+				"\nDuration:", atomic.LoadInt64(&avrDur), "ns (last 10000 sessions average)",
+				"\nFailed:", atomic.LoadInt32(&fail))
 			if shutdown {
 				fmt.Println("Stopping...")
 				if atomic.LoadInt32(&active) == 0 {
