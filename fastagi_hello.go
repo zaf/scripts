@@ -176,8 +176,9 @@ func agiConnHandle(client net.Conn, wg *sync.WaitGroup) {
 
 func agiInit(rcvChan <-chan string, agiInput map[string]string) {
 	//Read and store AGI input
+	i := 0
 	for agiStr := range rcvChan {
-		if agiStr == "" {
+		if agiStr == "" || i > 150 {
 			break
 		}
 		inputStr := strings.SplitN(agiStr, ": ", 2)
@@ -189,6 +190,7 @@ func agiInit(rcvChan <-chan string, agiInput map[string]string) {
 			log.Println("No AGI Compatible Input:", inputStr)
 			break
 		}
+		i++
 	}
 	if *debug {
 		log.Println("Finished reading AGI vars:")

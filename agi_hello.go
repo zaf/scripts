@@ -66,7 +66,7 @@ func main() {
 
 func agiParseInit(agiArg map[string]string) {
 	//Read and store AGI input
-	for {
+	for i := 0; i < 150; i++ {
 		line, err := agiReader.ReadString('\n')
 		if err != nil || line == "\n" {
 			break
