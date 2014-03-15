@@ -195,7 +195,7 @@ func agiInit(rcvChan <-chan string, agiInput map[string]string) {
 	if *debug {
 		log.Println("Finished reading AGI vars:")
 		for key, value := range agiInput {
-			log.Println(key + "\t\t" + value)
+			log.Printf("%-15s: %s\n", key, value)
 		}
 	}
 	return
