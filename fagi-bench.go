@@ -113,6 +113,9 @@ func agiBench(wg *sync.WaitGroup) {
 					for scanner.Scan() {
 						time.Sleep(replyDelay)
 						conn.Write([]byte("200 result=0\n"))
+						if scanner.Text() == "HANGUP" {
+							break
+						}
 					}
 					conn.Close()
 					elapsed := time.Since(start)
