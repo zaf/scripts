@@ -87,6 +87,7 @@ func agiBench(wg *sync.WaitGroup) {
 	//Spawn pool of paraller runs
 	for i := 0; i < *sess; i++ {
 		ticker := time.Tick(runDelay)
+		env := agiInit()
 		go func(ticker <-chan time.Time) {
 			defer wg1.Done()
 			wg2 := new(sync.WaitGroup)
@@ -108,7 +109,7 @@ func agiBench(wg *sync.WaitGroup) {
 					atomic.AddInt32(&active, 1)
 					scanner := bufio.NewScanner(conn)
 					//Send AGI initialisation data
-					conn.Write(agiInit())
+					conn.Write(env)
 					//Reply with '200' to all messages from the AGI server until it hangs up
 					for scanner.Scan() {
 						time.Sleep(replyDelay)
