@@ -14,16 +14,20 @@ package fastagi;
 use strict;
 use warnings;
 use Asterisk::AGI;
-use base 'Net::Server::Fork';
+use base 'Net::Server::PreFork';
 
 use constant DEBUG => 0;
 
 fastagi->run(
-	{   proto       => 'tcp',
-		port        => 4573,
-		host        => '127.0.0.1',
-		max_servers => 2000,
-		log_level   => 0,
+	{   proto             => 'tcp',
+		port              => 4573,
+		host              => '127.0.0.1',
+		min_servers       => 10,
+		min_spare_servers => 10,
+		max_spare_servers => 100,
+		max_servers       => 2000,
+		max_requests      => 1000,
+		log_level         => 0,
 	}
 );
 
