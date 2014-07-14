@@ -1,4 +1,13 @@
 #!/usr/bin/env perl
+#
+# FastAGI Server example
+#
+# Copyright (C) 2014, Lefteris Zafiris <zaf.000@gmail.com>
+#
+# This program is free software, distributed under the terms of
+# the GNU General Public License Version 2. See the LICENSE file
+# at the top of the source tree.
+#
 
 package fastagi;
 
@@ -9,33 +18,31 @@ use base 'Net::Server::PreFork';
 
 use constant DEBUG => 0;
 
-my $server = fastagi->new({
-	proto => 'tcp',
-	port => 4573,
-	host => '127.0.0.1',
-	min_servers => 5,
-	min_spare_servers => 5,
-	max_spare_servers => 50,
-	max_servers => 200,
-	max_requests => 1000,
-});
+fastagi->run(
+	{   proto             => 'tcp',
+		port              => 4573,
+		host              => '127.0.0.1',
+		min_servers       => 5,
+		min_spare_servers => 5,
+		max_spare_servers => 50,
+		max_servers       => 500,
+		max_requests      => 1000,
+		log_level         => 0,
+	}
+);
 
 sub process_request {
-    my $self = shift;
-	STDIN->autoflush( 1 );
+	my $self = shift;
 	myagi();
-
 }
 
 sub myagi {
 	my $status;
 	my $file;
-	my $agi = new Asterisk::AGI;
-	$agi->setcallback(\&mycallback);
+	my $agi   = new Asterisk::AGI;
 	my %input = $agi->ReadParse();
-
 	if (DEBUG) {
-		warn "\n==Finished reading AGI vars==\n";
+		warn "\n==AGI environment vars==\n";
 		warn "$_: $input{$_}\n" foreach (keys %input);
 	}
 
@@ -44,6 +51,7 @@ sub myagi {
 		goto HANGUP;
 	}
 	$file = $input{'arg_1'};
+
 	$status = $agi->channel_status('');
 	if ($status == -1) {
 		goto HANGUP;
@@ -54,7 +62,7 @@ sub myagi {
 			goto HANGUP;
 		}
 	}
-	$status = $agi->verbose("Paying back: $file", 0);
+	$agi->verbose("Paying back: $file", 0);
 	$status = $agi->stream_file($file, '', 0);
 	if ($status == -1) {
 		warn "Failed to playback file: $file\n";
@@ -65,11 +73,3 @@ HANGUP:
 	$agi->hangup();
 	return;
 }
-
-sub mycallback {
-        my ($returncode) = @_;
-        warn "User Hungup ($returncode)\n" if (DEBUG);
-        return $returncode;
-}
-
-$server->run;
