@@ -53,21 +53,16 @@ sub myagi {
 	$file = $input{'arg_1'};
 
 	$status = $agi->channel_status('');
-	if ($status == -1) {
-		goto HANGUP;
-	} elsif ($status != 6) {
+	if ($status != 6) {
 		$status = $agi->answer('');
 		if ($status == -1) {
 			warn "Failed to answer channel\n";
 			goto HANGUP;
 		}
 	}
-	$agi->verbose("Paying back: $file", 0);
-	$status = $agi->stream_file($file, '', 0);
-	if ($status == -1) {
-		warn "Failed to playback file: $file\n";
-		goto HANGUP;
-	}
+	$agi->verbose("Playing back: $file", 0);
+	$status = $agi->stream_file($file, '1234567890#*', 0);
+	warn "Failed to playback file: $file\n" if ($status == -1);
 
 HANGUP:
 	$agi->hangup();

@@ -6,7 +6,6 @@
 // the GNU General Public License Version 2. See the LICENSE file
 // at the top of the source tree.
 
-
 package main
 
 import (
@@ -16,6 +15,8 @@ import (
 
 	"github.com/zaf/agi"
 )
+
+const debug = false
 
 func main() {
 	ln, err := net.Listen("tcp", ":4573")
@@ -45,27 +46,34 @@ func connHandle(c net.Conn) {
 		log.Printf("Error Parsing AGI environment: %v\n", err)
 		return
 	}
+	if debug {
+		// Print AGI environment variables.
+		log.Println("AGI environment vars:")
+		for key, value := range myAgi.Env {
+			log.Printf("%-15s: %s\n", key, value)
+		}
+	}
 	// Check passed arguments
 	if myAgi.Env["arg_1"] == "" {
 		log.Println("No arguments passed, exiting...")
 		goto HANGUP
 	}
 	file = myAgi.Env["arg_1"]
-	// Chech channel status
+	// Chech channel status and answer if not already answered
 	rep, err = myAgi.ChannelStatus()
 	if err != nil {
 		log.Printf("AGI reply error: %v\n", err)
 		return
 	}
-	//Answer channel if not already answered
 	if rep.Res != 6 {
 		rep, err = myAgi.Answer()
 		if err != nil || rep.Res == -1 {
 			log.Printf("Failed to answer channel: %v\n", err)
-			return
+			goto HANGUP
 		}
 	}
 	// Playback file
+	myAgi.Verbose("Playing back: "+file, 0)
 	rep, err = myAgi.StreamFile(file, "1234567890#*")
 	if err != nil {
 		log.Printf("AGI reply error: %v\n", err)
@@ -75,7 +83,6 @@ func connHandle(c net.Conn) {
 		log.Printf("Failed to playback file: %s\n", file)
 	}
 HANGUP:
-	//Hangup
 	myAgi.Hangup()
 	return
 }
