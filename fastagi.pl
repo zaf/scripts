@@ -13,6 +13,7 @@ package fastagi;
 
 use strict;
 use warnings;
+use URI;
 use Asterisk::AGI;
 use base 'Net::Server::Fork';
 
@@ -41,12 +42,13 @@ sub myagi {
 		warn "\n==AGI environment vars==\n";
 		warn "$_: $input{$_}\n" foreach (keys %input);
 	}
-
-	if (!exists $input{'arg_1'}) {
-		warn "No arguments passed, exiting.\n" if (DEBUG);
+	my $uri = URI->new($input{"request"});
+	my %query = $uri->query_form;
+	if (! exists $query{"file"}) {
+		warn "No file name parameter passed, exiting.\n" if (DEBUG);
 		goto HANGUP;
 	}
-	$file = $input{'arg_1'};
+	$file = $query{"file"};
 
 	$status = $agi->channel_status('');
 	if ($status != 6) {

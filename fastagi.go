@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"log"
 	"net"
+	"net/url"
 
 	"github.com/zaf/agi"
 )
@@ -54,11 +55,13 @@ func connHandle(c net.Conn) {
 		}
 	}
 	// Check passed arguments
-	if myAgi.Env["arg_1"] == "" {
+	req, _ := url.Parse(myAgi.Env["request"])
+	query, _ := url.ParseQuery(req.RawQuery)
+	if query["file"] == nil {
 		log.Println("No arguments passed, exiting...")
 		goto HANGUP
 	}
-	file = myAgi.Env["arg_1"]
+	file = query["file"][0]
 	// Chech channel status and answer if not already answered
 	rep, err = myAgi.ChannelStatus()
 	if err != nil {
