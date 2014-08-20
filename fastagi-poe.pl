@@ -20,15 +20,17 @@ use POE qw(Component::Server::TCP);
 use constant DEBUG => 0;
 
 POE::Component::Server::TCP->new(
-	Address => '127.0.0.1',
-	Port    => 4573,
+	Address  => '127.0.0.1',
+	Port     => 4573,
 	Acceptor => \&myagi,
 );
 
+POE::Kernel->run;
+
 sub myagi {
 	my $socket = $_[ARG0];
-	*STDIN  = \*{ $socket };
-	*STDOUT = \*{ $socket };
+	*STDIN  = \*{$socket};
+	*STDOUT = \*{$socket};
 	STDIN->autoflush(1);
 	STDOUT->autoflush(1);
 	my $status;
@@ -39,9 +41,9 @@ sub myagi {
 		warn "\n==AGI environment vars==\n";
 		warn "$_: $input{$_}\n" foreach (keys %input);
 	}
-	my $uri = URI->new($input{"request"});
+	my $uri   = URI->new($input{"request"});
 	my %query = $uri->query_form;
-	if (! exists $query{"file"}) {
+	if (!exists $query{"file"}) {
 		warn "No file name parameter passed, exiting.\n" if (DEBUG);
 		goto HANGUP;
 	}
@@ -63,6 +65,3 @@ HANGUP:
 	$agi->hangup();
 	return;
 }
-
-POE::Kernel->run;
-exit;
