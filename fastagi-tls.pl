@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# FastAGI Server example using POE
+# FastAGI Server with TLS support example
 #
 # Copyright (C) 2014, Lefteris Zafiris <zaf.000@gmail.com>
 #
@@ -11,28 +11,35 @@
 
 package fastagi;
 
-use warnings;
 use strict;
+use warnings;
 use URI;
 use Asterisk::AGI;
-use POE qw(Component::Server::TCP);
+use base 'Net::Server::PreFork';
 
 use constant DEBUG => 0;
 
-POE::Component::Server::TCP->new(
-	Address  => '127.0.0.1',
-	Port     => 4573,
-	Acceptor => \&myagi,
+fastagi->run(
+	{   proto             => 'ssl',
+		SSL_key_file      => "secret.key",
+		SSL_cert_file     => "public.crt",
+		port              => 4574,
+		host              => '127.0.0.1',
+		min_servers       => 10,
+		min_spare_servers => 10,
+		max_spare_servers => 100,
+		max_servers       => 2000,
+		max_requests      => 1000,
+		log_level         => 0,
+	}
 );
 
-POE::Kernel->run;
+sub process_request {
+	my $self = shift;
+	myagi();
+}
 
 sub myagi {
-	my $socket = $_[ARG0];
-	*STDIN  = \*{$socket};
-	*STDOUT = \*{$socket};
-	STDIN->autoflush(1);
-	STDOUT->autoflush(1);
 	my $status;
 	my $file;
 	my $agi   = new Asterisk::AGI;
