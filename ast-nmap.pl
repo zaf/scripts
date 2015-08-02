@@ -88,7 +88,7 @@ if ($ipaddr !~ /$range/) {
 speak("Please hold. Scanning.");
 warn "$name Scanning $ipaddr\n" if ($debug);
 
-my $np = new Nmap::Parser;
+my $np = Nmap::Parser->new();
 $np->callback(\&host_handler);
 $np->parsescan($nmap, $nmap_args, $ipaddr);
 speak("Scan complete. Thank you.");

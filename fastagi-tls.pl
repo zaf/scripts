@@ -42,7 +42,7 @@ sub process_request {
 sub myagi {
 	my $status;
 	my $file;
-	my $agi   = new Asterisk::AGI;
+	my $agi   = Asterisk::AGI->new();
 	my %input = $agi->ReadParse();
 	if (DEBUG) {
 		warn "\n==AGI environment vars==\n";
