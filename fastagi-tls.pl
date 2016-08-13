@@ -2,7 +2,7 @@
 #
 # FastAGI Server with TLS support example
 #
-# Copyright (C) 2014, Lefteris Zafiris <zaf.000@gmail.com>
+# Copyright (C) 2014, Lefteris Zafiris <zaf@fastmail.com>
 #
 # This program is free software, distributed under the terms of
 # the GNU General Public License Version 2. See the LICENSE file

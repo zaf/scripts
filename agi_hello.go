@@ -1,7 +1,7 @@
 /*	A simple AGI example in go
 	We read and store AGI input, run some simple AGI commands and parse the output
 
-	Copyright (C) 2013 - 2014, Lefteris Zafiris <zaf.000@gmail.com>
+	Copyright (C) 2013 - 2014, Lefteris Zafiris <zaf@fastmail.com>
 
 	This program is free software, distributed under the terms of
 	the GNU General Public License Version 2. See the LICENSE file
